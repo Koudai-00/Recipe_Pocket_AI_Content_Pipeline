@@ -14,4 +14,5 @@ COPY src/ ./src/
 ENV PYTHONPATH=/app/src
 
 # Run the web service using uvicorn
-CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8080"]
+# Run the web service using uvicorn
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
