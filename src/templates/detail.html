@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>詳細: {{ article.topic }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .img-preview {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .markdown-body {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">Recipe Pocket AI Manager</a>
+            <a href="/" class="btn btn-outline-light btn-sm">一覧に戻る</a>
+        </div>
+    </nav>
+
+    <div class="container mt-4 mb-5">
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-white">
+                        <h4 class="mb-0">記事プレビュー</h4>
+                    </div>
+                    <div class="card-body">
+                        <h5>タイトル: {{ article.get('marketing_strategy', {}).replace("'", '"') | default('No Title', true)
+                            }}</h5>
+                        <hr>
+                        <div class="markdown-body">
+                            <!-- Simple rendering, in real app use a markdown library -->
+                            <pre style="white-space: pre-wrap;">{{ article.content }}</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">ステータス管理</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-secondary">
+                            現状: <strong>{{ article.status }}</strong>
+                        </div>
+                        <p>スコア: {{ article.review_score }}</p>
+                        <p class="text-danger">{{ article.review_comment }}</p>
+
+                        <hr>
+
+                        {% if article.status == 'posted' %}
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle"></i> Supabase投稿済み
+                        </div>
+                        {% else %}
+                        <form action="/articles/{{ article.id }}/post_supabase" method="post" class="mb-3"
+                            onsubmit="return confirm('Supabaseへ投稿しますか？');">
+                            <button type="submit" class="btn btn-primary w-100">
+                                🚀 Supabaseへ投稿 (Post)
+                            </button>
+                        </form>
+                        {% endif %}
+
+                        <form action="/articles/{{ article.id }}/update_status" method="post" class="d-grid gap-2">
+                            <button type="submit" name="status" value="approved" class="btn btn-success">
+                                ✅ 承認 (Approve Only)
+                            </button>
+                            <button type="submit" name="status" value="review_required" class="btn btn-warning">
+                                ⚠️ 保留 (Request Review)
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">生成画像</h5>
+                    </div>
+                    <div class="card-body">
+                        {% for url in article.image_urls %}
+                        <div class="mb-3">
+                            <img src="{{ url }}" class="img-preview" alt="Generated Image {{ loop.index }}">
+                            <small class="text-muted d-block text-truncate">{{ url }}</small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

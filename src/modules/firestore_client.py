@@ -85,3 +85,46 @@ class FirestoreClient:
         except Exception as e:
             logging.error(f"Error checking duplicate topic: {e}")
             return False
+
+    def get_recent_articles(self, limit=5):
+        """Retrieves recently created articles for context."""
+        try:
+            docs = self.db.collection(self.collection_articles)\
+                .order_by('created_at', direction=firestore.Query.DESCENDING)\
+                .limit(limit)\
+                .stream()
+            
+            articles = []
+            for doc in docs:
+                data = doc.to_dict()
+                # Extract only relevant fields to save token space
+                articles.append({
+                    "date": data.get('created_at'),
+                    "topic": data.get('topic'),
+                    "marketing_strategy": data.get('marketing_strategy')
+                })
+            return articles
+        except Exception as e:
+            logging.error(f"Error fetching recent articles: {e}")
+            return []
+    def get_system_settings(self):
+        """Retrieves system settings."""
+        try:
+            doc_ref = self.db.collection('system_settings').document('config')
+            doc = doc_ref.get()
+            if doc.exists:
+                return doc.to_dict()
+            return {}
+        except Exception as e:
+            logging.error(f"Error fetching system settings: {e}")
+            return {}
+
+    def save_system_settings(self, settings):
+        """Saves system settings."""
+        try:
+            doc_ref = self.db.collection('system_settings').document('config')
+            doc_ref.set(settings, merge=True)
+            return True
+        except Exception as e:
+            logging.error(f"Error saving system settings: {e}")
+            return False

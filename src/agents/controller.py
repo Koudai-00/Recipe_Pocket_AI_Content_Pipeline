@@ -4,33 +4,31 @@ import logging
 
 class ControllerAgent(BaseAgent):
     def __init__(self):
-        super().__init__(model_name="gemini-1.5-pro-001")
+        super().__init__(model_name="gemini-2.5-pro")
 
     def review_article(self, article_content, strategy):
         """
-        Reviews the article for quality, safety, and alignment with strategy.
+        Reviews the article for quality.
         """
         prompt = f"""
-        You are the Editor-in-Chief for 'Recipe Pocket'.
-        Review the following article draft.
+        あなたは編集長兼品質管理責任者です。作成された全てのデータをチェックし、以下の基準で判定してください。
 
-        Strategy Goal: {strategy.get('marketing_angle')}
-        Target Audience: 30s Housewives
+        戦略の意図: {strategy.get('concept')}
         
         Draft Content:
         {article_content}
 
-        Task:
-        1. Check for Japanese grammar or unnatural phrasing.
-        2. Verify the tone is friendly and appropriate.
-        3. Ensure there are exactly 2 markers "[SPLIT]" (dividing the text into 3 parts) or close to it.
-        4. Check for any harmful or inappropriate content.
+        合格基準:
+        - 日本語のミスや文章構成の破綻がないか。
+        - セクションの区切り（[SPLIT]）が文脈として自然か。
+        - 戦略レポートの意図（アプリ訴求やキーワード）が記事に反映されているか。
 
-        Output format (JSON only):
+        出力: 
+        JSON形式で出力してください。
         {{
-            "status": "APPROVED",  // or "REVIEW_REQUIRED"
+            "status": "APPROVED",  // APPROVED（公開） または REVIEW_REQUIRED（保留）
             "score": 85,           // 0-100
-            "comments": "Brief feedback explaining the decision."
+            "comments": "判定理由（保留の場合は具体的な修正指示）"
         }}
         """
         
@@ -41,7 +39,6 @@ class ControllerAgent(BaseAgent):
             return json.loads(cleaned_text)
         except json.JSONDecodeError:
             logging.error("Failed to parse controller response")
-            # Fail safe to review required
             return {
                 "status": "REVIEW_REQUIRED",
                 "score": 0,

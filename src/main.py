@@ -46,15 +46,19 @@ def main():
         analysis_result = analyst.analyze(ga4_report)
         topic = analysis_result.get('topic')
         
-        # Idempotency Check
+        # Idempotency / History Context
         if firestore_client.check_duplicate_topic(topic):
             logging.info(f"Topic '{topic}' already covered recently. Skipping.")
             notifier.notify(f"Skipped execution: Topic '{topic}' is a duplicate.", "WARNING")
             return
 
+        # Fetch recent history for Marketer
+        recent_history = firestore_client.get_recent_articles(limit=5)
+        history_text = json.dumps(recent_history, indent=2, ensure_ascii=False, default=str)
+
         # Step 3: Marketing Strategy
         logging.info("Step 3: Creating Marketing Strategy...")
-        strategy = marketer.create_strategy(analysis_result)
+        strategy = marketer.create_strategy(analysis_result, past_reports_context=history_text)
         
         # Create Draft in DB
         article_id = firestore_client.create_article_draft(report_id, topic)
@@ -63,28 +67,20 @@ def main():
         logging.info("Step 4: Writing Article...")
         article_content = writer.write_article(strategy)
         
-        # Step 5: Design (Images)
+        # Step 5: Design (Prompts + Images)
         logging.info("Step 5: Generating Images...")
-        # Context for image gen: Topic + Angle
-        image_context = f"{topic}, {strategy.get('marketing_angle')}"
-        image_urls = designer.generate_images(image_context)
+        # 5-1: Create Prompts using Gemini
+        image_prompts = designer.generate_image_prompts(article_content, strategy.get('title'))
+        # 5-2: Generate Images using Seedream
+        image_urls = designer.generate_images_from_prompts(image_prompts)
         
-        # Save images to Storage is separate from just getting URLs if DesignerAgent returns public URLs.
-        # If DesignerAgent returns generated URLs from Seedream (which might be temporary), we should upload to our GCS.
-        # Assuming DesignerAgent returns external URLs, we upload them to GCS or WP. 
-        # Requirement: "Seedream 4.5 API -> Thumb + 3 images"
-        # Let's assume we download and upload to WP immediately or GCS.
-        # Requirement says "approved" only then post.
-        # So we should probably store them in GCS or just keep the external URL if it is permanent.
-        # Usually AI generated URLs expire. Let's upload to GCS.
-        
+        # Upload images to GCS
         stored_image_urls = []
         import requests
         for idx, url in enumerate(image_urls):
-             # Download
+             # ... (existing upload logic) ...
              try:
-                 # Check if URL is mock or real
-                 if "mock" in url:
+                 if "mock" in url or "via.placeholder" in url:
                      stored_image_urls.append(url)
                      continue
                      
@@ -94,13 +90,14 @@ def main():
                  stored_image_urls.append(gcs_url)
              except Exception as e:
                  logging.error(f"Failed to upload image {idx}: {e}")
-                 stored_image_urls.append(url) # Fallback
+                 stored_image_urls.append(url)
 
         # Update Draft
         firestore_client.update_article(article_id, {
             'content': article_content,
             'image_urls': stored_image_urls,
-            'marketing_strategy': str(strategy)
+            'marketing_strategy': str(strategy),
+            'image_prompts': image_prompts 
         })
 
         # Step 6: Review
@@ -113,52 +110,57 @@ def main():
         })
 
         if review_result.get('status') == "APPROVED":
-            logging.info("Article APPROVED. Posting to WordPress...")
+            logging.info("Article APPROVED.")
             
-            # Prepare WP Content
-            # We need to assemble the split content and images.
-            # Split article by [SPLIT]
-            parts = article_content.split("[SPLIT]")
-            
-            final_html = ""
-            if len(parts) >= 1:
-                final_html += parts[0]
-            if len(stored_image_urls) > 1: # thumb is 0
-                # WP upload check
-                wp_img_id = wp_client.upload_media(stored_image_urls[1]) # Image 1
-                if wp_img_id:
-                     final_html += f"\n\n<!-- wp:image {{\"id\":{wp_img_id}}} --><figure class=\"wp-block-image\"><img src=\"{stored_image_urls[1]}\" /></figure><!-- /wp:image -->\n\n"
+            # Check if WordPress is configured
+            if wp_client.base_url and wp_client.username:
+                logging.info("Posting to WordPress...")
                 
-            if len(parts) >= 2:
-                final_html += parts[1]
-            if len(stored_image_urls) > 2:
-                wp_img_id = wp_client.upload_media(stored_image_urls[2]) # Image 2
-                if wp_img_id:
-                     final_html += f"\n\n<!-- wp:image {{\"id\":{wp_img_id}}} --><figure class=\"wp-block-image\"><img src=\"{stored_image_urls[2]}\" /></figure><!-- /wp:image -->\n\n"
+                # Prepare WP Content
+                # Split article by [SPLIT]
+                parts = article_content.split("[SPLIT]")
+                
+                final_html = ""
+                if len(parts) >= 1:
+                    final_html += parts[0]
+                if len(stored_image_urls) > 1: # thumb is 0
+                    wp_img_id = wp_client.upload_media(stored_image_urls[1]) # Image 1
+                    if wp_img_id:
+                         final_html += f"\n\n<!-- wp:image {{\"id\":{wp_img_id}}} --><figure class=\"wp-block-image\"><img src=\"{stored_image_urls[1]}\" /></figure><!-- /wp:image -->\n\n"
+                    
+                if len(parts) >= 2:
+                    final_html += parts[1]
+                if len(stored_image_urls) > 2:
+                    wp_img_id = wp_client.upload_media(stored_image_urls[2]) # Image 2
+                    if wp_img_id:
+                         final_html += f"\n\n<!-- wp:image {{\"id\":{wp_img_id}}} --><figure class=\"wp-block-image\"><img src=\"{stored_image_urls[2]}\" /></figure><!-- /wp:image -->\n\n"
+    
+                if len(parts) >= 3:
+                    final_html += parts[2]
+                if len(stored_image_urls) > 3:
+                     wp_img_id = wp_client.upload_media(stored_image_urls[3]) # Image 3
+                     if wp_img_id:
+                         final_html += f"\n\n<!-- wp:image {{\"id\":{wp_img_id}}} --><figure class=\"wp-block-image\"><img src=\"{stored_image_urls[3]}\" /></figure><!-- /wp:image -->\n\n"
+                
+                # Featured Image
+                feat_img_id = None
+                if len(stored_image_urls) > 0:
+                    feat_img_id = wp_client.upload_media(stored_image_urls[0])
+    
+                wp_post_id = wp_client.create_post({
+                    "title": strategy.get("title"),
+                    "content": final_html, 
+                    "featured_media_id": feat_img_id
+                }, status="publish")
+                
+                firestore_client.update_article(article_id, {'status': 'posted', 'wp_post_id': wp_post_id})
+                notifier.notify(f"Success! Article '{strategy.get('title')}' posted. (ID: {wp_post_id})", "SUCCESS")
+                
+            else:
+                logging.info("WordPress credentials not found. Skipping post.")
+                firestore_client.update_article(article_id, {'status': 'approved'})
+                notifier.notify(f"Success! Article '{strategy.get('title')}' approved and saved to Firestore.", "SUCCESS")
 
-            if len(parts) >= 3:
-                final_html += parts[2]
-            if len(stored_image_urls) > 3:
-                 wp_img_id = wp_client.upload_media(stored_image_urls[3]) # Image 3
-                 if wp_img_id:
-                     final_html += f"\n\n<!-- wp:image {{\"id\":{wp_img_id}}} --><figure class=\"wp-block-image\"><img src=\"{stored_image_urls[3]}\" /></figure><!-- /wp:image -->\n\n"
-            
-            # Featured Image
-            feat_img_id = None
-            if len(stored_image_urls) > 0:
-                feat_img_id = wp_client.upload_media(stored_image_urls[0])
-
-            wp_post_id = wp_client.create_post({
-                "title": strategy.get("title"),
-                "content": final_html, # Using markdown/html mix
-                "featured_media_id": feat_img_id
-            }, status="publish") # Or 'draft' as requested? Req says "APPROVED" -> "Post". "Auto posting" implies publish.
-                                 # But safely, maybe draft. User said "自動投稿" (Auto post). I'll set to publish or future. 
-                                 # Let's set to 'draft' in WP to be safe initially, or 'publish' if fully trusted.
-                                 # Requirement says "APPROVED 判定時のみ... 自動投稿". Controller gave approved. So Publish.
-            
-            firestore_client.update_article(article_id, {'status': 'posted', 'wp_post_id': wp_post_id})
-            notifier.notify(f"Success! Article '{strategy.get('title')}' posted. (ID: {wp_post_id})", "SUCCESS")
         else:
             logging.info("Article NOT APPROVED.")
             firestore_client.update_article(article_id, {'status': 'review_required'})

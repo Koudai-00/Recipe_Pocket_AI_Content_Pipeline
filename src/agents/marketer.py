@@ -3,34 +3,32 @@ import json
 
 class MarketerAgent(BaseAgent):
     def __init__(self):
-        super().__init__(model_name="gemini-1.5-pro-001")
+        super().__init__(model_name="gemini-2.5-pro")
 
-    def create_strategy(self, analysis_result, existing_topics=[]):
+    def create_strategy(self, analysis_result, past_reports_context=""):
         """
-        Creates a marketing strategy based on the analysis and avoids duplicates.
+        Creates a marketing strategy based on the analysis and past context.
         """
-        topic = analysis_result.get("topic")
-        
-        # Simple duplicate check in prompt, though better handled by Firestore logic external to this
-        # Here we just ask it to refine the angle if it sounds generic
-        
         prompt = f"""
-        You are a Marketing Strategist for 'Recipe Pocket'.
-        
-        Selected Topic: {topic}
-        Analysis: {analysis_result.get('reasoning')}
-        Target Audience: 30s housewives, friendly tone (blogger style).
-        
-        Task:
-        Develop a content strategy to write a blog post about this topic.
-        The post must encourage users to download the 'Recipe Pocket' app.
-        
-        Output format (JSON only):
+        あなたは凄腕のマーケターです。データ分析結果と過去のレポートを基に、
+        30代の主婦を中心とした料理好きの方々に「レシピポケット」をダウンロードしてもらうための戦略を立案してください。
+
+        データ分析結果:
+        {json.dumps(analysis_result, indent=2, ensure_ascii=False)}
+
+        過去のレポート/記事（重複防止と文脈用）:
+        {past_reports_context}
+
+        戦略の軸: 
+        読者の「献立に悩む」「動画が散らばって見つからない」という悩みに共感し、アプリの利便性を解決策として提示する。
+
+        出力: 
+        JSON形式で出力してください。
         {{
-            "title": "Catchy Blog Title",
-            "article_structure": ["Intro", "Point 1", "Point 2", "App Promo", "Conclusion"],
-            "marketing_angle": "How to position the app as the solution (e.g. saves time, organizes recipes)",
-            "tone_guide": "Specific instructions for the writer agent (e.g. use emojis, ask questions)"
+            "concept": "記事のコンセプト（ターゲットのどんな悩みに寄り添うか）",
+            "function_intro": "アプリのどの機能（YouTube/TikTok一元管理など）をどう紹介するか",
+            "title": "記事タイトル案",
+            "structure": ["導入", "セクション1", "セクション2", "セクション3", "まとめ"]
         }}
         """
         
@@ -41,8 +39,8 @@ class MarketerAgent(BaseAgent):
             return json.loads(cleaned_text)
         except json.JSONDecodeError:
             return {
-                "title": f"Enjoy {topic} at home!",
-                "article_structure": ["Intro", "Tips", "Conclusion"],
-                "marketing_angle": "Standard promo",
-                "tone_guide": "Friendly"
+                "concept": "分析結果に基づく提案",
+                "function_intro": "動画管理機能の紹介",
+                "title": f"{analysis_result.get('topic', 'レシピ')}の活用法",
+                "structure": ["導入", "レシピ紹介", "アプリ紹介", "まとめ"]
             }

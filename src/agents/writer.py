@@ -3,35 +3,28 @@ import json
 
 class WriterAgent(BaseAgent):
     def __init__(self):
-        super().__init__(model_name="gemini-1.5-pro-001")
+        super().__init__(model_name="gemini-2.5-pro")
 
     def write_article(self, strategy):
         """
         Writes the article based on the strategy.
-        Splits the body into 3 parts using [SPLIT] marker.
         """
         prompt = f"""
-        You are a professional blogger (30s female, friendly, relatable tone).
-        Write a blog post for the app 'Recipe Pocket' based on the following strategy.
+        あなたは30代の女性ブロガーです。料理が大好きで、実体験を交えた共感性の高い記事を書くのが得意です。
 
-        Strategy:
-        {json.dumps(strategy, indent=2)}
+        戦略/構成案:
+        {json.dumps(strategy, indent=2, ensure_ascii=False)}
 
-        Requirements:
-        1. **Tone**: Casual, empathetic, "Let's do this together!" vibe. Use emojis occasionally.
-        2. **Structure**: Follow the provided structure.
-        3. **Formatting**: Use Markdown.
-        4. **Length**: 1500-2000 characters total.
-        5. **Segmentation**: You MUST split the main body content into exactly 3 parts so we can insert images between them. 
-           Insert the marker "[SPLIT]" between these parts. 
-           Do NOT put [SPLIT] at the very beginning or end.
-           
-        Input Data (Strategy):
-        Title: {strategy.get('title')}
-        Angle: {strategy.get('marketing_angle')}
+        トーン: 
+        親しみやすく、少し崩した口調（「〜だよね」「〜しちゃった！」など）。硬い表現は避けてください。
+
+        タスク: 
+        1. 読者が「わかる！」と思える実体験エピソードから始めてください。 
+        2. 記事全体を執筆した後、内容の区切りが良い箇所に [SPLIT] というマーカーを2つ入れ、全体を3つのセクションに分けてください。 
+        3. 読後感として「レシピポケットを使えば料理がもっと楽になりそう」と思わせる構成にしてください。
         
-        Output:
-        Return the full article text in Markdown.
+        出力:
+        Markdown形式の本文のみ
         """
         
         response_text = self.generate_content(prompt, temperature=0.7)
