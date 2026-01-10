@@ -6,7 +6,7 @@ fastapi
 uvicorn
 jinja2
 python-multipart
-requestsgoogle-analytics-data
+google-analytics-data
 requests
 python-dotenv
 flask
