@@ -18,10 +18,36 @@ logging.basicConfig(level=logging.INFO)
 # Setup Templates
 templates = Jinja2Templates(directory="src/templates")
 
-# Initialize Pipeline & DB
-pipeline = ContentPipeline()
-db_client = FirestoreClient(project_id=Config.PROJECT_ID)
-scheduler = SchedulerClient()
+# Global Instances (Lazy Loaded)
+_pipeline = None
+_db_client = None
+_scheduler = None
+
+def get_db_client():
+    global _db_client
+    if _db_client is None:
+        logging.info("Initializing FirestoreClient...")
+        _db_client = FirestoreClient(project_id=Config.PROJECT_ID)
+    return _db_client
+
+def get_scheduler():
+    global _scheduler
+    if _scheduler is None:
+        logging.info("Initializing SchedulerClient...")
+        _scheduler = SchedulerClient()
+    return _scheduler
+
+def get_pipeline():
+    global _pipeline
+    if _pipeline is None:
+        logging.info("Initializing ContentPipeline...")
+        _pipeline = ContentPipeline()
+    return _pipeline
+
+# Initialize DB for Startup Check (Optional, but keeps cold start safe)
+# pipeline = ContentPipeline()
+# db_client = FirestoreClient(project_id=Config.PROJECT_ID)
+# scheduler = SchedulerClient()
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
@@ -31,7 +57,7 @@ async def dashboard(request: Request):
     # Fetch articles
     articles = []
     try:
-        docs = db_client.db.collection('articles')\
+        docs = get_db_client().db.collection('articles')\
             .order_by('created_at', direction=firestore.Query.DESCENDING)\
             .limit(20)\
             .stream()
@@ -45,12 +71,12 @@ async def dashboard(request: Request):
 
     # Fetch Schedule
     current_schedule = {"hour": 9, "minute": 0} # Default
-    job = scheduler.get_job()
+    job = get_scheduler().get_job()
     if job:
-        current_schedule = scheduler.parse_schedule(job.schedule)
+        current_schedule = get_scheduler().parse_schedule(job.schedule)
 
     # Fetch System Settings
-    settings = db_client.get_system_settings()
+    settings = get_db_client().get_system_settings()
     articles_per_run = settings.get("articles_per_run", 1)
     auto_post_supabase = settings.get("auto_post_supabase", False)
 
@@ -69,7 +95,7 @@ async def update_schedule(hour: int = Form(...), minute: int = Form(...), articl
     Update the daily run time and articles count.
     """
     # Update Scheduler Time
-    success, msg = scheduler.update_schedule(hour, minute)
+    success, msg = get_scheduler().update_schedule(hour, minute)
     
     # Update DB Settings
     # Checkbox sends 'true' if checked, nothing if unchecked. FastAPI handles bool=Form(False) properly if omitted?
@@ -79,7 +105,7 @@ async def update_schedule(hour: int = Form(...), minute: int = Form(...), articl
     # We will assume if it's missing, it's False, but FastAPI 'Form' required param raises error if missing.
     # So we change definition to Optional or default.
     
-    db_client.save_system_settings({
+    get_db_client().save_system_settings({
         "articles_per_run": articles_per_run,
         "auto_post_supabase": auto_post_supabase
     })
@@ -95,7 +121,7 @@ async def article_detail(request: Request, article_id: str):
     """
     article = {}
     try:
-        doc = db_client.db.collection('articles').document(article_id).get()
+        doc = get_db_client().db.collection('articles').document(article_id).get()
         if doc.exists:
             article = doc.to_dict()
             article['id'] = doc.id
@@ -112,7 +138,7 @@ async def run_pipeline_manual(background_tasks: BackgroundTasks, image_model: st
     """
     Trigger pipeline manually with selected options.
     """
-    background_tasks.add_task(pipeline.run, image_model=image_model)
+    background_tasks.add_task(get_pipeline().run, image_model=image_model)
     return RedirectResponse(url=f"/?msg=Pipeline+Started+with+{image_model}", status_code=303)
 
 @app.post("/schedule")
@@ -132,7 +158,7 @@ async def schedule_trigger(background_tasks: BackgroundTasks):
         avoid_topics = []
         for i in range(n):
             logging.info(f"Batch execution {i+1}/{n}")
-            res = pipeline.run(image_model=model, avoid_topics=avoid_topics)
+            res = get_pipeline().run(image_model=model, avoid_topics=avoid_topics)
             if res.get("topic"):
                 avoid_topics.append(res.get("topic"))
 
@@ -145,7 +171,7 @@ async def update_status(article_id: str, status: str = Form(...)):
     Update article status (e.g. force approve).
     """
     try:
-        db_client.update_article(article_id, {'status': status})
+        get_db_client().update_article(article_id, {'status': status})
     except Exception as e:
         logging.error(f"Error updating status: {e}")
     return RedirectResponse(url=f"/articles/{article_id}", status_code=303)
@@ -159,7 +185,7 @@ async def post_supabase_manual(article_id: str):
         # Fetch article data specifically for posting logic
         # Ideally, we should add a method in Pipeline to "publish_existing_draft"
         # For now, let's reconstruct args from DB manually or use a helper
-        article = db_client.get_article(article_id)
+        article = get_db_client().get_article(article_id)
         if not article: raise Exception("Article not found")
         
         # Need to parse strategy string back to dict
@@ -169,15 +195,15 @@ async def post_supabase_manual(article_id: str):
         except:
              strategy = {'title': 'Untitled'}
 
-        supa_id = pipeline.post_to_supabase(
+        supa_id = get_pipeline().post_to_supabase(
             article_id, 
             strategy, 
             article.get('content'), 
             article.get('image_urls', [])
         )
         
-        db_client.update_article(article_id, {'status': 'posted', 'supabase_id': supa_id})
-        pipeline.notifier.notify(f"Manual Post Success: {strategy.get('title')}", "SUCCESS")
+        get_db_client().update_article(article_id, {'status': 'posted', 'supabase_id': supa_id})
+        get_pipeline().notifier.notify(f"Manual Post Success: {strategy.get('title')}", "SUCCESS")
         
     except Exception as e:
         logging.error(f"Manual post failed: {e}")
