@@ -1,0 +1,10 @@
+google-cloud-aiplatform
+google-cloud-firestore
+google-cloud-storage
+google-cloud-secret-manager
+google-analytics-data
+requests
+python-dotenv
+flask
+gunicorn
+functions-framework
