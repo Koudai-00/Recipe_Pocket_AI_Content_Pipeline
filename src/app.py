@@ -173,7 +173,8 @@ async def get_progress():
     pipeline_instance = get_pipeline()
     return {
         "status": getattr(pipeline_instance, "current_status", "Idle"),
-        "progress": getattr(pipeline_instance, "progress", 0)
+        "progress": getattr(pipeline_instance, "progress", 0),
+        "logs": getattr(pipeline_instance, "logs", [])
     }
 
 @app.post("/articles/{article_id}/update_status")
