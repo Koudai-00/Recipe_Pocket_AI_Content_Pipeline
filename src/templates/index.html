@@ -194,6 +194,53 @@
         </div>
     </div>
 
+    <script>
+        function startProgressCheck() {
+            document.getElementById('progress-container').style.display = 'block';
+            pollProgress();
+        }
+
+        function pollProgress() {
+            fetch('/progress')
+                .then(response => response.json())
+                .then(data => {
+                    const bar = document.getElementById('progress-bar');
+                    const status = document.getElementById('progress-status');
+                    const container = document.getElementById('progress-container');
+
+                    if (data.progress > 0 && data.progress < 100) {
+                        container.style.display = 'block';
+                        bar.style.width = data.progress + '%';
+                        bar.innerText = data.progress + '%';
+                        status.innerText = data.status;
+                        setTimeout(pollProgress, 2000); // Poll every 2s
+                    } else if (data.progress === 100) {
+                        bar.style.width = '100%';
+                        bar.className = 'progress-bar bg-success';
+                        status.innerText = '完了! (Reloading...)';
+                        setTimeout(() => window.location.reload(), 1500);
+                    } else {
+                        // Idle or Error
+                        if (data.status && data.status.includes('Error')) {
+                            container.style.display = 'block';
+                            container.className = 'alert alert-danger';
+                            status.innerText = data.status;
+                        }
+                    }
+                })
+                .catch(e => console.error(e));
+        }
+
+        // Check on load in case processing is active
+        document.addEventListener('DOMContentLoaded', () => {
+            // Optional: Check status on load without showing container immediately unless running
+            fetch('/progress').then(r => r.json()).then(d => {
+                if (d.progress > 0 && d.progress < 100) {
+                    startProgressCheck();
+                }
+            });
+        });
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 
