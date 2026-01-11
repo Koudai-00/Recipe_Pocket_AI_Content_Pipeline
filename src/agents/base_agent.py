@@ -7,7 +7,9 @@ class BaseAgent:
         # Initialize Google AI Studio (API Key)
         api_key = Config.get_gemini_api_key()
         if not api_key:
-            logging.warning("GEMINI_API_KEY not found. Helper agents may fail.")
+            logging.error("GEMINI_API_KEY not found. Please create 'GEMINI_API_KEY' in Secret Manager or environment variables.")
+            # We raise error here because without API Key, using 'google-generativeai' lib with ADC usually fails due to scope issues.
+            raise ValueError("GEMINI_API_KEY is missing.")
         else:
             genai.configure(api_key=api_key)
         

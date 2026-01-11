@@ -3,11 +3,20 @@ import logging
 from google.cloud import secretmanager
 from dotenv import load_dotenv
 
+import google.auth
+
 # Load environment variables from .env if present
 load_dotenv()
 
 class Config:
-    PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
+    # Try to get project_id from auth credentials if env var is missing
+    try:
+        _, project_id_auth = google.auth.default()
+        PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", project_id_auth)
+    except Exception as e:
+        logging.warning(f"Could not determine project_id from google.auth: {e}")
+        PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
+
     REGION = os.getenv("GOOGLE_CLOUD_REGION", "asia-northeast1")
     
     # Secret Manager Secret IDs
