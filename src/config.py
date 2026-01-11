@@ -58,5 +58,17 @@ class Config:
         # Expected format: JSON string or similar
         return cls.get_secret(cls.SECRET_ID_WP)
 
+    # Supabase Configuration
+    SECRET_ID_SUPABASE_URL = os.getenv("SECRET_ID_SUPABASE_URL", "SUPABASE_URL")
+    SECRET_ID_SUPABASE_KEY = os.getenv("SECRET_ID_SUPABASE_KEY", "SUPABASE_KEY")
+
+    @classmethod
+    def get_supabase_url(cls):
+        return cls.get_secret(cls.SECRET_ID_SUPABASE_URL)
+
+    @classmethod
+    def get_supabase_key(cls):
+        return cls.get_secret(cls.SECRET_ID_SUPABASE_KEY)
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
