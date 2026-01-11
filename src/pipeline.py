@@ -97,11 +97,12 @@ class ContentPipeline:
                     logging.error(f"Failed to upload image {idx}: {e}")
                     stored_image_urls.append(url)
 
-            # Update Draft
+            # Update Draft with structured data
             self.firestore.update_article(article_id, {
                 'content': article_content,
                 'image_urls': stored_image_urls,
-                'marketing_strategy': str(strategy),
+                'marketing_strategy': strategy, # Save as object/map, not string
+                'analysis_report': analysis_result, # Save analyst report
                 'image_prompts': image_prompts,
                 'image_model': image_model
             })
@@ -112,6 +113,7 @@ class ContentPipeline:
             self.firestore.update_article(article_id, {
                 'review_score': review_result.get('score'),
                 'review_comment': review_result.get('comments'),
+                'review_report': review_result, # Save full review report
                 'status': 'reviewed'
             })
 

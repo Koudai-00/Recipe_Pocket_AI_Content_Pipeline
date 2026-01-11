@@ -34,17 +34,132 @@
     <div class="container mt-4 mb-5">
         <div class="row">
             <div class="col-md-8">
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-white">
-                        <h4 class="mb-0">記事プレビュー</h4>
+                <!-- Tab Navigation -->
+                <ul class="nav nav-tabs mb-3" id="articleTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="content-tab" data-bs-toggle="tab" data-bs-target="#content"
+                            type="button" role="tab" aria-controls="content" aria-selected="true">記事本文</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="analysis-tab" data-bs-toggle="tab" data-bs-target="#analysis"
+                            type="button" role="tab" aria-controls="analysis" aria-selected="false">📊 分析レポート</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="strategy-tab" data-bs-toggle="tab" data-bs-target="#strategy"
+                            type="button" role="tab" aria-controls="strategy" aria-selected="false">🎯 戦略策定</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="review-tab" data-bs-toggle="tab" data-bs-target="#review"
+                            type="button" role="tab" aria-controls="review" aria-selected="false">👀 レビュー詳細</button>
+                    </li>
+                </ul>
+
+                <!-- Tab Content -->
+                <div class="tab-content" id="articleTabsContent">
+                    <!-- Tab 1: Content -->
+                    <div class="tab-pane fade show active" id="content" role="tabpanel" aria-labelledby="content-tab">
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-header bg-white">
+                                <h4 class="mb-0">
+                                    {% if article.marketing_strategy is mapping %}
+                                    {{ article.marketing_strategy.get('title', 'No Title') }}
+                                    {% else %}
+                                    {{ article.get('marketing_strategy', '').replace("'", '"') | default('No Title',
+                                    true) }}
+                                    {% endif %}
+                                </h4>
+                            </div>
+                            <div class="card-body">
+                                <div class="markdown-body">
+                                    <pre style="white-space: pre-wrap;">{{ article.content }}</pre>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <h5>タイトル: {{ article.get('marketing_strategy', {}).replace("'", '"') | default('No Title', true)
-                            }}</h5>
-                        <hr>
-                        <div class="markdown-body">
-                            <!-- Simple rendering, in real app use a markdown library -->
-                            <pre style="white-space: pre-wrap;">{{ article.content }}</pre>
+
+                    <!-- Tab 2: Analysis Report -->
+                    <div class="tab-pane fade" id="analysis" role="tabpanel" aria-labelledby="analysis-tab">
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-body">
+                                <h5>分析エージェント (Analyst)</h5>
+                                <hr>
+                                {% if article.analysis_report %}
+                                <dl class="row">
+                                    <dt class="col-sm-3">方向性</dt>
+                                    <dd class="col-sm-9">{{ article.analysis_report.get('direction') }}</dd>
+
+                                    <dt class="col-sm-3">選定トピック</dt>
+                                    <dd class="col-sm-9"><strong>{{ article.analysis_report.get('topic') }}</strong>
+                                    </dd>
+                                </dl>
+                                <details>
+                                    <summary class="btn btn-sm btn-outline-secondary mb-2">生データを表示 (JSON)</summary>
+                                    <pre
+                                        class="bg-light p-3 border rounded">{{ article.analysis_report | tojson(indent=2) }}</pre>
+                                </details>
+                                {% else %}
+                                <p class="text-muted">詳細な分析レポートデータがありません。</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 3: Marketing Strategy -->
+                    <div class="tab-pane fade" id="strategy" role="tabpanel" aria-labelledby="strategy-tab">
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-body">
+                                <h5>マーケティングエージェント (Marketer)</h5>
+                                <hr>
+                                {% if article.marketing_strategy is mapping %}
+                                <dl class="row">
+                                    <dt class="col-sm-3">ターゲット</dt>
+                                    <dd class="col-sm-9">{{ article.marketing_strategy.get('target_audience') }}</dd>
+
+                                    <dt class="col-sm-3">SEOキーワード</dt>
+                                    <dd class="col-sm-9">{{ article.marketing_strategy.get('seo_keywords') | join(', ')
+                                        }}</dd>
+
+                                    <dt class="col-sm-3">記事のねらい</dt>
+                                    <dd class="col-sm-9">{{ article.marketing_strategy.get('goal') }}</dd>
+                                </dl>
+                                <details>
+                                    <summary class="btn btn-sm btn-outline-secondary mb-2">生データを表示 (JSON)</summary>
+                                    <pre
+                                        class="bg-light p-3 border rounded">{{ article.marketing_strategy | tojson(indent=2) }}</pre>
+                                </details>
+                                {% else %}
+                                <p>レガシーデータ形式（テキストのみ）:</p>
+                                <pre class="bg-light p-3 border rounded">{{ article.marketing_strategy }}</pre>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 4: Review Report -->
+                    <div class="tab-pane fade" id="review" role="tabpanel" aria-labelledby="review-tab">
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-body">
+                                <h5>品質管理エージェント (Controller)</h5>
+                                <hr>
+                                {% if article.review_report %}
+                                <div
+                                    class="alert {{ 'alert-success' if article.review_report.get('status') == 'APPROVED' else 'alert-warning' }}">
+                                    判定: <strong>{{ article.review_report.get('status') }}</strong> (Score: {{
+                                    article.review_report.get('score') }}/100)
+                                </div>
+                                <p><strong>総合コメント:</strong><br>{{ article.review_report.get('comments') }}</p>
+
+                                <h6>詳細評価:</h6>
+                                <ul>
+                                    {% for item in article.review_report.get('details', []) %}
+                                    <li>{{ item }}</li>
+                                    {% endfor %}
+                                </ul>
+                                {% else %}
+                                <p>スコア: {{ article.review_score }}</p>
+                                <p>コメント: {{ article.review_comment }}</p>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -104,6 +219,7 @@
             </div>
         </div>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 
 </html>
