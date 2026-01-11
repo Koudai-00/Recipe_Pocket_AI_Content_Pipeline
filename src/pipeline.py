@@ -33,22 +33,32 @@ class ContentPipeline:
         self.designer = DesignerAgent()
         self.controller = ControllerAgent()
 
+        # Initialize progress tracking
+        self.current_status = "Idle"
+        self.progress = 0
+
     def run(self, image_model="seedream-4.5", avoid_topics=None):
         """
         Executes the content generation pipeline.
         Returns a dict with execution result.
         """
         logging.info("Starting Recipe Pocket AI Pipeline...")
+        self.current_status = "Starting Pipeline..."
+        self.progress = 5
         result = {"status": "success", "message": "Pipeline completed successfully", "topic": None}
         
         try:
             # Step 1: Data Acquisition
             logging.info("Step 1: Fetching GA4 Data...")
+            self.current_status = "Step 1/6: Fetching GA4 Data..."
+            self.progress = 10
             ga4_report = self.ga4.fetch_daily_report(days_ago=1)
             report_id = self.firestore.save_report_data(ga4_report)
             
             # Step 2: Analysis
             logging.info("Step 2: Analyzing Data...")
+            self.current_status = "Step 2/6: Analyzing Data with Gemini..."
+            self.progress = 25
             analysis_result = self.analyst.analyze(ga4_report, avoid_topics=avoid_topics)
             topic = analysis_result.get('topic')
             result["topic"] = topic
@@ -58,6 +68,8 @@ class ContentPipeline:
                 msg = f"Topic '{topic}' already covered recently. Skipping."
                 logging.info(msg)
                 self.notifier.notify(f"Skipped: {msg}", "WARNING")
+                self.current_status = f"Skipped: {msg}"
+                self.progress = 100
                 return {"status": "skipped", "message": msg}
 
             # Fetch recent history
@@ -66,6 +78,8 @@ class ContentPipeline:
 
             # Step 3: Marketing Strategy
             logging.info("Step 3: Creating Marketing Strategy...")
+            self.current_status = "Step 3/6: Creating Marketing Strategy..."
+            self.progress = 40
             strategy = self.marketer.create_strategy(analysis_result, past_reports_context=history_text)
             
             # Create Draft
@@ -73,14 +87,20 @@ class ContentPipeline:
             
             # Step 4: Writing
             logging.info("Step 4: Writing Article...")
+            self.current_status = "Step 4/6: Writing Article Content..."
+            self.progress = 55
             article_content = self.writer.write_article(strategy)
             
             # Step 5: Design
             logging.info(f"Step 5: Generating Images using {image_model}...")
+            self.current_status = f"Step 5/6: Generating Images ({image_model})..."
+            self.progress = 70
             image_prompts = self.designer.generate_image_prompts(article_content, strategy.get('title'), image_model=image_model)
             image_urls = self.designer.generate_images_from_prompts(image_prompts, image_model=image_model)
             
             # Upload images
+            self.current_status = "Step 5/6: Uploading Images to Storage..."
+            self.progress = 75
             stored_image_urls = []
             import requests
             for idx, url in enumerate(image_urls):
@@ -109,6 +129,8 @@ class ContentPipeline:
 
             # Step 6: Review
             logging.info("Step 6: Reviewing...")
+            self.current_status = "Step 6/6: Reviewing & Finalizing..."
+            self.progress = 90
             review_result = self.controller.review_article(article_content, strategy)
             self.firestore.update_article(article_id, {
                 'review_score': review_result.get('score'),
@@ -126,6 +148,8 @@ class ContentPipeline:
 
                 if auto_post_supabase:
                     logging.info("Auto-posting to Supabase...")
+                    self.current_status = "Publishing to Supabase..."
+                    self.progress = 95
                     try:
                         supa_id = self.post_to_supabase(article_id, strategy, article_content, stored_image_urls)
                         self.firestore.update_article(article_id, {'status': 'posted', 'supabase_id': supa_id})
@@ -146,11 +170,15 @@ class ContentPipeline:
                 self.notifier.notify(f"Review Required: {strategy.get('title')}", "WARNING")
                 result["message"] = "Article requires review"
 
+            self.current_status = "Completed"
+            self.progress = 100
             return result
 
         except Exception as e:
             logging.error(f"Pipeline Failed: {e}", exc_info=True)
             self.notifier.notify(f"Pipeline Failed: {e}", "ERROR")
+            self.current_status = f"Error: {str(e)}"
+            self.progress = 0
             return {"status": "error", "message": str(e)}
 
     def post_to_supabase(self, article_id, strategy, content, source_image_urls):

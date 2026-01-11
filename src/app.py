@@ -165,6 +165,17 @@ async def schedule_trigger(background_tasks: BackgroundTasks):
     background_tasks.add_task(run_batch, count, image_model)
     return {"status": "started", "count": count}
 
+@app.get("/progress")
+async def get_progress():
+    """
+    Returns current pipeline progress.
+    """
+    pipeline_instance = get_pipeline()
+    return {
+        "status": getattr(pipeline_instance, "current_status", "Idle"),
+        "progress": getattr(pipeline_instance, "progress", 0)
+    }
+
 @app.post("/articles/{article_id}/update_status")
 async def update_status(article_id: str, status: str = Form(...)):
     """

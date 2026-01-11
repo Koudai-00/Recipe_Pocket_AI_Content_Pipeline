@@ -22,7 +22,7 @@ class AnalystAgent(BaseAgent):
         分析対象: 直近の検索キーワード、PV上位記事、週間/月間目標との乖離。
         
         GA4 Report:
-        {json.dumps(ga4_report, indent=2, ensure_ascii=False)}
+        {json.dumps(ga4_report, indent=2, ensure_ascii=False, default=str)}
 
         {avoid_instruction}
 
