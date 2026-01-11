@@ -8,6 +8,7 @@ from google.analytics.data_v1beta.types import (
 import logging
 from datetime import datetime, timedelta
 import json
+import os
 from config import Config
 
 class GA4Client:
