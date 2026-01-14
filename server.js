@@ -388,17 +388,18 @@ app.get('/api/analytics/monthly', async (req, res) => {
     const data = await apiRes.json();
 
     // Parse
+    // Parse
     const row = data.rows?.[0];
-    const metrics = row ? {
-      sessions: parseInt(row.metricValues[0].value),
-      activeUsers: parseInt(row.metricValues[1].value),
-      screenPageViews: parseInt(row.metricValues[2].value),
-      averageSessionDuration: parseFloat(row.metricValues[3].value),
-      bounceRate: parseFloat(row.metricValues[4].value),
-      organicSearchTraffic: 0, // Placeholder
-      prevSessions: 0, // Placeholder
-      prevPageViews: 0 // Placeholder
-    } : null;
+    const metrics = {
+      sessions: row ? parseInt(row.metricValues[0].value) : 0,
+      activeUsers: row ? parseInt(row.metricValues[1].value) : 0,
+      screenPageViews: row ? parseInt(row.metricValues[2].value) : 0,
+      averageSessionDuration: row ? parseFloat(row.metricValues[3].value) : 0,
+      bounceRate: row ? parseFloat(row.metricValues[4].value) : 0,
+      organicSearchTraffic: 0,
+      prevSessions: 0,
+      prevPageViews: 0
+    };
 
     res.json(metrics || {});
   } catch (error) {
