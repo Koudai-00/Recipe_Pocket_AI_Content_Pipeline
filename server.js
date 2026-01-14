@@ -18,9 +18,9 @@ app.use(cors());
 
 // --- Helper: Secret Manager ---
 const loadSecrets = async () => {
-  const projectId = process.env.GOOGLE_CLOUD_PROJECT;
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.PROJECT_ID;
   if (!projectId) {
-    console.log("GOOGLE_CLOUD_PROJECT not set. Skipping Secret Manager (using .env).");
+    console.log("Projects ID (GOOGLE_CLOUD_PROJECT or PROJECT_ID) not set. Skipping Secret Manager (using .env).");
     return;
   }
 
