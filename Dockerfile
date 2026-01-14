@@ -1,18 +1,21 @@
-FROM python:3.9-slim
+# Use official Node.js image
+FROM node:20-slim
 
+# Create app directory
 WORKDIR /app
 
-# Copy requirements and install
-COPY requirements.txt .
-# Install uvicorn and other dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install app dependencies
+COPY package*.json ./
+RUN npm install
 
-# Copy source code
-COPY src/ ./src/
+# Copy app source
+COPY . .
 
-# Set env for python path to include src
-ENV PYTHONPATH=/app/src
+# Build the React frontend
+RUN npm run build
 
-# Run the web service using uvicorn
-# Run the web service using uvicorn
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
+# Expose port (Cloud Run sets PORT env var, defaulting to 8080)
+EXPOSE 8080
+
+# Start the server
+CMD [ "node", "server.js" ]

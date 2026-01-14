@@ -1,41 +1,34 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Virtual Environment
-venv/
-.env
-.venv
+node_modules
+dist
+dist-ssr
+*.local
 
-# IDE
-.vscode/
-.idea/
-*.swp
-
-# OS
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
 .DS_Store
-Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
-# Project Specific
-secrets.json
-credentials.json
-ai-content-pipeline-483916-fe382b19e246.json
+# Secrets & Config
+.env
+*.env
+ai-content-pipeline-*.json
+service-account-key.json
+GA4_CREDENTIALS_JSON
+
+# Legacy
+legacy_python/
