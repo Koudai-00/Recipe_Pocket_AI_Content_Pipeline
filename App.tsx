@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import AgentStatus from './components/AgentStatus';
 import LogConsole from './components/LogConsole';
 import ArticleList from './components/ArticleList';
-import ArticlePreview from './components/ArticlePreview';
+import ArticleDetailView from './components/ArticleDetailView';
 import SettingsView from './components/SettingsView';
 import MonthlyReportView from './components/MonthlyReportView';
 import { AgentType, LogEntry, Article, SystemSettings, DesignPrompts } from './types';
@@ -16,7 +16,7 @@ import { saveToFirestore, updateFirestoreStatus, fetchArticles } from './service
 // Simple ID generator
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-type ViewType = 'dashboard' | 'articles' | 'analytics' | 'settings';
+type ViewType = 'dashboard' | 'articles' | 'article_detail' | 'analytics' | 'settings';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
@@ -228,7 +228,6 @@ export default function App() {
   }, [status, imageModel, articles, arkApiKey, systemSettings, skipImages]);
 
   const handlePostArticle = async (articleId: string) => {
-    // ... Existing logic but using systemSettings from state ...
     const targetArticle = articles.find(a => a.id === articleId);
     if (!targetArticle) return;
 
@@ -287,11 +286,10 @@ export default function App() {
 
         <div className="flex-1 flex flex-col overflow-y-auto">
           <nav className="p-4 space-y-1">
-            {/* Navigation Buttons ... (Same as before) */}
             <button onClick={() => setCurrentView('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left ${currentView === 'dashboard' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
               <i className="fas fa-columns w-5 text-center"></i><span className="font-medium">ダッシュボード</span>
             </button>
-            <button onClick={() => setCurrentView('articles')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left ${currentView === 'articles' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <button onClick={() => setCurrentView('articles')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left ${currentView === 'articles' || currentView === 'article_detail' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
               <i className="fas fa-newspaper w-5 text-center"></i><span className="font-medium">記事一覧</span>
             </button>
             <button onClick={() => setCurrentView('analytics')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left ${currentView === 'analytics' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
@@ -316,10 +314,11 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {currentView === 'dashboard' && (
             <>
-              {/* Header & Controls (Same as before) */}
+              {/* Header & Controls */}
               <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-900">コンテンツパイプライン</h2>
+                  <h2 className="text-2xl font-bold text-slate-900">記事生成パイプライン</h2>
+                  <p className="text-slate-500 mt-1">AIエージェントが記事を自動作成します。</p>
                 </div>
                 <div className="flex items-center gap-3 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm">
                   <div className="flex items-center h-full px-3 border-r border-slate-100">
@@ -337,22 +336,34 @@ export default function App() {
 
               <AgentStatus currentStatus={status} />
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
-                <div className="lg:col-span-1 h-full"><LogConsole logs={logs} /></div>
-                <div className="lg:col-span-2 h-full flex flex-col gap-6">
-                  <div className="flex-1 overflow-hidden"><ArticleList articles={articles} onView={setSelectedArticle} /></div>
-                </div>
+              <div className="mt-6">
+                <LogConsole logs={logs} />
               </div>
             </>
           )}
 
+          {currentView === 'articles' && (
+            <ArticleList
+              articles={articles}
+              onView={(article) => {
+                setSelectedArticle(article);
+                setCurrentView('article_detail');
+              }}
+            />
+          )}
+
+          {currentView === 'article_detail' && selectedArticle && (
+            <ArticleDetailView
+              article={selectedArticle}
+              onBack={() => setCurrentView('articles')}
+              onPost={handlePostArticle}
+            />
+          )}
+
           {currentView === 'analytics' && <MonthlyReportView addLog={addLog} />}
           {currentView === 'settings' && <SettingsView settings={systemSettings} onSave={setSystemSettings} />}
-          {/* ... Other views ... */}
         </div>
       </main>
-
-      {selectedArticle && <ArticlePreview article={selectedArticle} onClose={() => setSelectedArticle(null)} onPost={handlePostArticle} />}
     </div>
   );
 }
