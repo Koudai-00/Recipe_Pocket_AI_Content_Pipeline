@@ -38,6 +38,23 @@ const DEFAULT_PROMPTS = {
       出力JSON: { "status": "APPROVED"|"REVIEW_REQUIRED", "score": number, "comments": "..." }`
 };
 
+// --- Monthly Report Prompt ---
+const MONTHLY_REPORT_PROMPT = `あなたは「Recipe Pocket」の最高戦略責任者（CSO）です。
+【当月の実績】{{CURRENT_METRICS}}
+【過去のレポート（要約）】{{PAST_REPORTS}}
+【指示】
+1. 当月の成果を評価してください（前月比などを考慮）。
+2. 次月のKPI（PV目標値と注力カテゴリ）を設定してください。
+3. 具体的な戦略（記事の方向性）とアクションプランを提示してください。
+
+出力形式 (JSON):
+{
+  "evaluation": "...",
+  "kpis": { "pv_target": number, "focus_category": "..." },
+  "strategy_focus": "...",
+  "action_items": ["...", "..."]
+}`;
+
 const cleanJson = (text) => {
     try {
         const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
@@ -58,8 +75,102 @@ export const setupScheduler = (app) => {
 
         const PORT = process.env.PORT || 8080;
         const BASE_URL = `http://localhost:${PORT}`;
+        const today = new Date(); // Use server local time (or UTC?) Cloud Run defaults to UTC usually. Japan is +9.
+        // If Cloud Scheduler triggers at 9:00 JST, that's 0:00 UTC. 
+        // User wants "5th". 
+        // If we rely on system time, we should care about timezone. 
+        // Assuming Cloud Run is UTC, adding 9 hours might be safer for JST logic, OR just rely on the fact that 9am JST is 0am UTC, so 'date' is consistent if we check UTC date?
+        // Let's assume server/node time is UTC. 
+        // If user wants "5th", and scheduler runs at 9am JST (0am UTC), then `new Date().getUTCDate()` should be 5.
+        // Let's use `new Date().getDate()` (local) but be aware of env.
 
-        console.log("[Scheduler] Triggered. Starting pipeline...");
+        console.log(`[Scheduler] Triggered. Date: ${today.toISOString()}`);
+
+        // --- Monthly Report Logic (Run on 5th) ---
+        // Check if day is 5.
+        // Note: We need to handle Timezone. If Cloud Scheduler is JST 9:00, Server might be UTC 0:00.
+        // 5th 9:00 JST is 5th 0:00 UTC. So Date should match.
+        if (today.getDate() === 5) {
+            console.log("[Scheduler] Today is the 5th. Starting Monthly Report Generation...");
+            try {
+                // 1. Fetch Monthly Analytics
+                const analyticsRes = await fetch(`${BASE_URL}/api/analytics/monthly`);
+                const metrics = await analyticsRes.json();
+
+                // 2. Fetch Past Reports
+                const reportsRes = await fetch(`${BASE_URL}/api/firestore/monthly_reports`);
+                const pastReports = await reportsRes.json();
+                const pastSummary = pastReports.slice(0, 3).map(r =>
+                    `[${r.month}] KPI: PV${r.analysis?.kpis?.pv_target}, Focus:${r.analysis?.kpis?.focus_category}, Eval:${r.analysis?.evaluation}`
+                ).join("\n");
+
+                // 3. Generate Analysis
+                const prompt = MONTHLY_REPORT_PROMPT
+                    .replace('{{CURRENT_METRICS}}', JSON.stringify(metrics))
+                    .replace('{{PAST_REPORTS}}', pastSummary || "なし");
+
+                const geminiRes = await fetch(`${BASE_URL}/api/gemini/generate`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: 'gemini-3-pro-preview', contents: { parts: [{ text: prompt }] }, config: { responseMimeType: "application/json" } })
+                });
+
+                const geminiJson = await geminiRes.json();
+                const analysisText = geminiJson.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!analysisText) throw new Error("Monthly Report Generation Failed (No Text)");
+                const analysis = cleanJson(analysisText);
+
+                // 4. Save Report
+                const monthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+
+                // Construct Report Object matching Firestore/Frontend expectations
+                // We use the existing endpoint which expects { report: ... } or { documentBody ... }
+                // Let's use the same structure as `monthlyReportAgent` in frontend:
+                // Full object:
+                // { id: 'YYYY-MM', month: 'YYYY-MM', created_at: ..., metrics: ..., analysis: ... }
+                // `saveMonthlyReportDoc` keeps it simple. 
+                // However, backend `/api/firestore/monthly_reports` expects `req.body.documentBody` (Firestore JSON) if calling PATCH directly?
+                // Wait, checking server.js: 
+                // app.post('/api/firestore/monthly_reports', ... body: JSON.stringify(req.body.documentBody) ...)
+                // So we need to format it as Firestore JSON.
+
+                const toFirestoreValue = (val) => {
+                    if (val === null || val === undefined) return { nullValue: null };
+                    if (typeof val === 'string') return { stringValue: val };
+                    if (typeof val === 'number') return Number.isInteger(val) ? { integerValue: val } : { doubleValue: val };
+                    if (typeof val === 'boolean') return { booleanValue: val };
+                    if (Array.isArray(val)) return { arrayValue: { values: val.map(toFirestoreValue) } };
+                    if (typeof val === 'object') {
+                        const fields = {};
+                        for (const k in val) fields[k] = toFirestoreValue(val[k]);
+                        return { mapValue: { fields } };
+                    }
+                    return { stringValue: String(val) };
+                };
+
+                const reportData = {
+                    id: monthStr,
+                    month: monthStr,
+                    created_at: today.toISOString(),
+                    metrics: metrics,
+                    analysis: analysis
+                };
+
+                const firestoreBody = { fields: toFirestoreValue(reportData).mapValue.fields };
+
+                await fetch(`${BASE_URL}/api/firestore/monthly_reports`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        report: { id: reportData.id }, // ID for URL
+                        documentBody: firestoreBody   // Body for Firestore
+                    })
+                });
+
+                console.log(`[Scheduler] Monthly Report (${monthStr}) Generated and Saved.`);
+
+            } catch (e) {
+                console.error("[Scheduler] Monthly Report Generation Failed:", e);
+            }
+        }
 
         try {
             // 1. Fetch Prompts (Loopback)

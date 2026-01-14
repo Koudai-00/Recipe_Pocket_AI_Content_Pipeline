@@ -79,6 +79,7 @@ const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({ addLog }) => {
                 <div>
                     <h2 className="text-2xl font-bold text-slate-900">月次戦略レポート (PDCA)</h2>
                     <p className="text-sm text-slate-500 mt-1">過去のデータを元に、AIが次月の戦略を立案します。</p>
+                    <p className="text-xs text-purple-600 font-bold mt-1">※ 月次レポートは毎月5日に自動作成されます。</p>
                 </div>
                 <button
                     onClick={handleGenerate}
