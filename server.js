@@ -261,6 +261,76 @@ app.post('/api/firestore/status', async (req, res) => {
   }
 });
 
+// --- API: Agent Prompts Settings ---
+app.get('/api/settings/prompts', async (req, res) => {
+  try {
+    const creds = JSON.parse(process.env.GA4_CREDENTIALS_JSON || '{}');
+    const projectId = creds.project_id;
+    if (!projectId) throw new Error("Project ID missing");
+
+    const accessToken = await getGoogleAccessToken(['https://www.googleapis.com/auth/datastore']);
+
+    // Path: settings/agent_prompts
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/settings/agent_prompts`;
+
+    const apiRes = await fetch(url, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+
+    if (apiRes.status === 404) {
+      return res.json({});
+    }
+
+    if (!apiRes.ok) throw new Error(await apiRes.text());
+    const data = await apiRes.json();
+
+    const fields = data.fields || {};
+    const result = {
+      analyst: fields.analyst?.stringValue,
+      marketer: fields.marketer?.stringValue,
+      writer: fields.writer?.stringValue,
+      designer: fields.designer?.stringValue,
+      controller: fields.controller?.stringValue
+    };
+
+    res.json(result);
+  } catch (error) {
+    console.error("Prompt Fetch Error:", error);
+    res.json({});
+  }
+});
+
+app.post('/api/settings/prompts', async (req, res) => {
+  try {
+    const prompts = req.body;
+    const creds = JSON.parse(process.env.GA4_CREDENTIALS_JSON || '{}');
+    const projectId = creds.project_id;
+    if (!projectId) throw new Error("Project ID missing");
+
+    const accessToken = await getGoogleAccessToken(['https://www.googleapis.com/auth/datastore']);
+
+    const fields = {};
+    for (const [key, value] of Object.entries(prompts)) {
+      if (value) fields[key] = { stringValue: value };
+    }
+
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/settings/agent_prompts`;
+
+    const apiRes = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields })
+    });
+
+    if (!apiRes.ok) throw new Error(await apiRes.text());
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Prompt Save Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Fallback for React Router
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));

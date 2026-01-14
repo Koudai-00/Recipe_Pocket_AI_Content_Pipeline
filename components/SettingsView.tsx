@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { IMAGE_MODELS } from '../constants';
-import { SystemSettings } from '../types';
+import { SystemSettings, AgentPrompts } from '../types';
+import { DEFAULT_PROMPTS } from '../services/geminiService';
 
 interface SettingsViewProps {
     settings: SystemSettings;
@@ -211,7 +212,97 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, onSave }) => {
                 </div>
             </div>
 
+            {/* Prompt Settings (New Section) */}
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
+                <h3 className="text-lg font-bold text-slate-800 flex items-center mb-4">
+                    <i className="fas fa-comment-dots mr-2 text-purple-500"></i>
+                    プロンプト設定 (AIへの指示)
+                </h3>
+                <p className="text-sm text-slate-500 mb-4">
+                    各エージェントの振る舞いをカスタマイズできます。プレースホルダー (<code>{'{{...}}'}</code>) は実行時に自動置換されます。
+                </p>
 
+                <PromptEditor
+                    prompts={localSettings.agentPrompts || DEFAULT_PROMPTS}
+                    onChange={(newPrompts) => setLocalSettings({ ...localSettings, agentPrompts: newPrompts })}
+                />
+            </div>
+
+            {/* Save Area */}
+            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 flex justify-between items-center shadow-lg md:pl-64 z-50">
+                <p className="text-xs text-slate-400 hidden md:block">
+                    ※設定はデータベースに保存され、すべてのユーザーに反映されます。
+                </p>
+                <div className="flex gap-4">
+                    <button
+                        onClick={handleSave}
+                        disabled={isSaving}
+                        className={`px-8 py-3 rounded-lg text-white font-bold shadow-md transition-all ${isSaving ? 'bg-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:shadow-lg hover:scale-105 active:scale-95'}`}
+                    >
+                        {isSaving ? (
+                            <><i className="fas fa-spinner fa-spin mr-2"></i>保存中...</>
+                        ) : (
+                            <><i className="fas fa-save mr-2"></i>設定を保存</>
+                        )}
+                    </button>
+                    <button
+                        onClick={async () => {
+                            // Separate save logic for prompts if needed, 
+                            // but handleSave calls onSave which updates SystemSettings.
+                            // We should ensure onSave in App.tsx also saves prompts to Firestore if they changed.
+                            // Actually, let's just use the main save button.
+                        }}
+                        className="hidden" // Placeholder
+                    />
+                </div>
+            </div>
+
+        </div>
+    );
+};
+
+// Sub-component for Prompt Tabs
+const PromptEditor: React.FC<{ prompts: AgentPrompts; onChange: (p: AgentPrompts) => void }> = ({ prompts, onChange }) => {
+    const [activeTab, setActiveTab] = useState<keyof AgentPrompts>('analyst');
+
+    const tabs: { key: keyof AgentPrompts; label: string; icon: string }[] = [
+        { key: 'analyst', label: 'データ分析', icon: 'fa-chart-line' },
+        { key: 'marketer', label: 'マーケティング', icon: 'fa-bullhorn' },
+        { key: 'writer', label: '記事執筆', icon: 'fa-pen-nib' },
+        { key: 'designer', label: '画像生成', icon: 'fa-palette' },
+        { key: 'controller', label: '統括レビュー', icon: 'fa-tasks' },
+    ];
+
+    const handleChange = (val: string) => {
+        onChange({ ...prompts, [activeTab]: val });
+    };
+
+    return (
+        <div className="border border-slate-200 rounded-lg overflow-hidden">
+            <div className="flex bg-slate-50 border-b border-slate-200 overflow-x-auto">
+                {tabs.map(tab => (
+                    <button
+                        key={tab.key}
+                        onClick={() => setActiveTab(tab.key)}
+                        className={`flex items-center px-4 py-3 text-sm font-bold whitespace-nowrap transition-colors ${activeTab === tab.key ? 'bg-white text-blue-600 border-b-2 border-blue-500' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`}
+                    >
+                        <i className={`fas ${tab.icon} mr-2`}></i>
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+            <div className="p-4 bg-slate-900">
+                <textarea
+                    value={prompts[activeTab]}
+                    onChange={(e) => handleChange(e.target.value)}
+                    className="w-full h-64 bg-slate-800 text-slate-100 font-mono text-sm p-4 rounded border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none leading-relaxed"
+                    spellCheck={false}
+                />
+                <div className="mt-2 text-xs text-slate-400 flex justify-between">
+                    <span>文字数: {prompts[activeTab].length}</span>
+                    <span>※ <code>{'{{...}}'}</code> の箇所は変更しないでください（システム変数が挿入されます）</span>
+                </div>
+            </div>
         </div>
     );
 };

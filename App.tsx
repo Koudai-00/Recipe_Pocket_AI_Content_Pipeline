@@ -82,6 +82,23 @@ export default function App() {
       }
     };
     fetchConfig();
+
+    const fetchPrompts = async () => {
+      try {
+        const res = await fetch('/api/settings/prompts');
+        const data = await res.json();
+        if (data.analyst) {
+          setSystemSettings((prev: SystemSettings) => ({
+            ...prev,
+            agentPrompts: data
+          }));
+          console.log("Loaded custom prompts from Firestore");
+        }
+      } catch (e) {
+        console.error("Failed to fetch prompts:", e);
+      }
+    };
+    fetchPrompts();
   }, []);
 
   // Fetch Existing Articles from Firestore
@@ -119,19 +136,19 @@ export default function App() {
 
     try {
       // 1. Analyst
-      const analysis = await analystAgent(articles);
+      const analysis = await analystAgent(articles, systemSettings.agentPrompts?.analyst);
       addLog(AgentType.ANALYST, `トピック特定完了: ${analysis.topic}`, 'success');
 
       // 2. Marketer
       setStatus(AgentType.MARKETER);
       addLog(AgentType.MARKETER, "コンテンツ戦略を策定中...", 'info');
-      const strategy = await marketerAgent(analysis, articles);
+      const strategy = await marketerAgent(analysis, articles, systemSettings.agentPrompts?.marketer);
       addLog(AgentType.MARKETER, `タイトル案: ${strategy.title}`, 'success');
 
       // 3. Writer
       setStatus(AgentType.WRITER);
       addLog(AgentType.WRITER, "記事執筆中...", 'info');
-      const rawContent = await writerAgent(strategy);
+      const rawContent = await writerAgent(strategy, systemSettings.agentPrompts?.writer);
 
       const parts = rawContent.split('[SPLIT]');
       const body_p1 = parts[0] || "";
@@ -148,7 +165,7 @@ export default function App() {
         setStatus(AgentType.DESIGNER);
         addLog(AgentType.DESIGNER, `画像生成中... (Model: ${imageModel})`, 'info');
 
-        design = await designerAgent(strategy.title, rawContent, imageModel, { seedream: arkApiKey });
+        design = await designerAgent(strategy.title, rawContent, imageModel, { seedream: arkApiKey }, systemSettings.agentPrompts?.designer);
         addLog(AgentType.DESIGNER, "画像を生成し、Storageへアップロード中...", 'info');
 
         imageUrls = await uploadArticleImages(newArticleId, design);
@@ -162,7 +179,7 @@ export default function App() {
       // 5. Controller
       setStatus(AgentType.CONTROLLER);
       addLog(AgentType.CONTROLLER, "レビュー中...", 'info');
-      const review = await controllerAgent(strategy, rawContent);
+      const review = await controllerAgent(strategy, rawContent, systemSettings.agentPrompts?.controller);
       let finalStatus: Article['status'] = review.status === 'APPROVED' ? 'Approved' : 'Reviewing';
 
       const newArticle: Article = {

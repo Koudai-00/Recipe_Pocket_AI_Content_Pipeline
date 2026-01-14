@@ -61,24 +61,24 @@ export interface Article {
   id: string; // Firestore Document ID
   date: string; // Timestamp
   status: 'Drafting' | 'Reviewing' | 'Approved' | 'Posted' | 'Rejected' | 'Error';
-  
+
   // Reports
   analysis_report: AnalysisResult;
   marketing_strategy: StrategyResult;
-  
+
   // Content Structure
   content: ArticleContent;
-  
+
   // Images (Public URLs stored in Storage)
   image_urls: string[]; // [thumb, img1, img2, img3]
-  
+
   review?: ReviewResult;
-  
+
   // Internal/Transient (for UI display before upload)
   design?: DesignPrompts;
-  
+
   // Legacy/Helper fields for UI compatibility
-  title?: string; 
+  title?: string;
   topic?: string;
 }
 
@@ -95,10 +95,19 @@ export interface SupabaseConfig {
   autoPost: boolean;
 }
 
+export interface AgentPrompts {
+  analyst: string;
+  marketer: string;
+  writer: string;
+  designer: string;
+  controller: string;
+}
+
 export interface SystemSettings {
   articlesPerRun: number;
   defaultImageModel: string;
   schedulerEnabled: boolean;
   cronSchedule: string;
   supabase: SupabaseConfig;
+  agentPrompts?: AgentPrompts;
 }

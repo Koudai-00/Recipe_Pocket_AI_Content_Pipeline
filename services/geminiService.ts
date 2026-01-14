@@ -9,7 +9,7 @@ const callGeminiApi = async (model: string, contents: any, config?: any) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model, contents, config })
   });
-  
+
   if (!response.ok) {
     const err = await response.json();
     throw new Error(err.error || 'Gemini API call failed');
@@ -57,69 +57,98 @@ const generateGeminiImage = async (prompt: string, model: string): Promise<strin
 // Helper: Generate Image using Seedream API (Client side is fine if key is provided by user, 
 // OR we could move this to backend too, but sticking to existing logic for Seedream specific API key from UI)
 const generateSeedreamImage = async (prompt: string, apiKeyFromUI?: string): Promise<string | undefined> => {
-    // Note: process.env is removed. We rely on UI input for Seedream for now or backend proxy if we wanted.
-    // Keeping UI input logic for now as requested by previous implementation style.
-    const arkKey = apiKeyFromUI; 
-    
-    if (!arkKey) {
-        console.warn("Seedream/ARK API Key not provided.");
-        return `https://placehold.co/2560x1440/FF8C00/ffffff.png?text=Seedream+Key+Missing`;
-    }
+  // Note: process.env is removed. We rely on UI input for Seedream for now or backend proxy if we wanted.
+  // Keeping UI input logic for now as requested by previous implementation style.
+  const arkKey = apiKeyFromUI;
 
-    try {
-        console.log("Calling Seedream API...");
-        const res = await fetch('https://ark.ap-southeast.bytepluses.com/api/v3/images/generations', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${arkKey}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                model: "seedream-4-5-251128", 
-                prompt: prompt,
-                size: "2560x1440", 
-                sequential_image_generation: "disabled",
-                response_format: "url",
-                stream: false,
-                watermark: false
-            })
-        });
-        
-        if (!res.ok) throw new Error(await res.text());
-        
-        const data = await res.json();
-        if (data.data && data.data.length > 0 && data.data[0].url) {
-            return data.data[0].url;
-        }
-        return `https://placehold.co/2560x1440/e11d48/ffffff.png?text=Invalid+Response`;
+  if (!arkKey) {
+    console.warn("Seedream/ARK API Key not provided.");
+    return `https://placehold.co/2560x1440/FF8C00/ffffff.png?text=Seedream+Key+Missing`;
+  }
 
-    } catch (e) {
-         console.error("Seedream Error:", e);
-         return `https://placehold.co/2560x1440/e11d48/ffffff.png?text=Generation+Error`;
+  try {
+    console.log("Calling Seedream API...");
+    const res = await fetch('https://ark.ap-southeast.bytepluses.com/api/v3/images/generations', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${arkKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: "seedream-4-5-251128",
+        prompt: prompt,
+        size: "2560x1440",
+        sequential_image_generation: "disabled",
+        response_format: "url",
+        stream: false,
+        watermark: false
+      })
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+
+    const data = await res.json();
+    if (data.data && data.data.length > 0 && data.data[0].url) {
+      return data.data[0].url;
     }
+    return `https://placehold.co/2560x1440/e11d48/ffffff.png?text=Invalid+Response`;
+
+  } catch (e) {
+    console.error("Seedream Error:", e);
+    return `https://placehold.co/2560x1440/e11d48/ffffff.png?text=Generation+Error`;
+  }
 };
 
 const generateImage = async (prompt: string, model: string, apiKeys?: { seedream?: string }): Promise<string | undefined> => {
-    if (model === 'seedream-4.5') {
-        return generateSeedreamImage(prompt, apiKeys?.seedream);
-    } else {
-        return generateGeminiImage(prompt, model);
-    }
+  if (model === 'seedream-4.5') {
+    return generateSeedreamImage(prompt, apiKeys?.seedream);
+  } else {
+    return generateGeminiImage(prompt, model);
+  }
 };
 
-export const analystAgent = async (pastArticles: Article[] = []): Promise<AnalysisResult> => {
+// Default Prompts Configuration
+export const DEFAULT_PROMPTS = {
+  analyst: `あなたは「Recipe Pocket」のプロのデータアナリストです。
+    【分析対象データ】{{ANALYTICS_DATA}}
+    【過去のトピック】{{PAST_TOPICS}}
+    【アプリ情報】{{APP_CONTEXT}}
+    【指示】Google Analyticsデータを分析し、PV最大化のための記事トピックを決定してください。
+    出力: JSON形式 { "direction": "...", "topic": "..." }`,
+
+  marketer: `あなたは凄腕のマーケターです。
+    【分析データ】{{ANALYSIS_RESULT}}
+    【過去タイトル】{{PAST_TITLES}}
+    【アプリ詳細】{{APP_CONTEXT}}
+    【指示】ターゲット（30代主婦）に刺さる記事戦略をJSONで出力してください。
+    出力: JSON形式 { "concept": "...", "function_intro": "...", "title": "...", "structure": [] }`,
+
+  writer: `あなたは「Recipe Pocket」の公式ブログを書く主婦ブロガーです。
+    【戦略】{{STRATEGY}}
+    【アプリ】{{APP_CONTEXT}}
+    【ルール】Markdown形式。[SPLIT]マーカーを2回入れて3分割すること。`,
+
+  designer: `画像生成プロンプト作成。
+    タイトル: {{TITLE}}
+    内容: {{CONTENT_SNIPPET}}
+    {{STYLE_INSTRUCTION}}
+    出力JSON: { "thumbnail_prompt": "...", "section1_prompt": "...", "section2_prompt": "...", "section3_prompt": "..." }`,
+
+  controller: `あなたは編集長です。
+    【戦略】{{STRATEGY}}
+    【記事】{{CONTENT_SNIPPET}}
+    出力JSON: { "status": "APPROVED"|"REVIEW_REQUIRED", "score": number, "comments": "..." }`
+};
+
+export const analystAgent = async (pastArticles: Article[] = [], promptTemplate?: string): Promise<AnalysisResult> => {
   console.log("Fetching Analytics Data from Backend...");
   const analyticsData = await getRealAnalyticsData();
   const pastTopics = pastArticles.map(a => a.topic || a.content.title).join(", ");
 
-  const prompt = `
-    あなたは「Recipe Pocket」のプロのデータアナリストです。
-    【分析対象データ】${JSON.stringify(analyticsData)}
-    【過去のトピック】${pastTopics ? pastTopics : "なし"}
-    【アプリ情報】${APP_CONTEXT}
-    【指示】Google Analyticsデータを分析し、PV最大化のための記事トピックを決定してください。
-    出力: JSON形式 { "direction": "...", "topic": "..." }
-  `;
+  let prompt = promptTemplate || DEFAULT_PROMPTS.analyst;
+  prompt = prompt.replace('{{ANALYTICS_DATA}}', JSON.stringify(analyticsData))
+    .replace('{{PAST_TOPICS}}', pastTopics ? pastTopics : "なし")
+    .replace('{{APP_CONTEXT}}', APP_CONTEXT);
 
   try {
     const response = await callGeminiApi(TEXT_MODEL, prompt, { responseMimeType: "application/json" });
@@ -130,16 +159,13 @@ export const analystAgent = async (pastArticles: Article[] = []): Promise<Analys
   }
 };
 
-export const marketerAgent = async (analysis: AnalysisResult, pastArticles: Article[] = []): Promise<StrategyResult> => {
+export const marketerAgent = async (analysis: AnalysisResult, pastArticles: Article[] = [], promptTemplate?: string): Promise<StrategyResult> => {
   const pastTitles = pastArticles.map(a => a.content?.title || a.title).join(", ");
-  const prompt = `
-    あなたは凄腕のマーケターです。
-    【分析データ】${JSON.stringify(analysis)}
-    【過去タイトル】${pastTitles}
-    【アプリ詳細】${APP_CONTEXT}
-    【指示】ターゲット（30代主婦）に刺さる記事戦略をJSONで出力してください。
-    出力: JSON形式 { "concept": "...", "function_intro": "...", "title": "...", "structure": [] }
-  `;
+
+  let prompt = promptTemplate || DEFAULT_PROMPTS.marketer;
+  prompt = prompt.replace('{{ANALYSIS_RESULT}}', JSON.stringify(analysis))
+    .replace('{{PAST_TITLES}}', pastTitles)
+    .replace('{{APP_CONTEXT}}', APP_CONTEXT);
 
   try {
     const response = await callGeminiApi(TEXT_MODEL, prompt, { responseMimeType: "application/json" });
@@ -150,13 +176,10 @@ export const marketerAgent = async (analysis: AnalysisResult, pastArticles: Arti
   }
 };
 
-export const writerAgent = async (strategy: StrategyResult): Promise<string> => {
-  const prompt = `
-    あなたは「Recipe Pocket」の公式ブログを書く主婦ブロガーです。
-    【戦略】${JSON.stringify(strategy)}
-    【アプリ】${APP_CONTEXT}
-    【ルール】Markdown形式。[SPLIT]マーカーを2回入れて3分割すること。
-  `;
+export const writerAgent = async (strategy: StrategyResult, promptTemplate?: string): Promise<string> => {
+  let prompt = promptTemplate || DEFAULT_PROMPTS.writer;
+  prompt = prompt.replace('{{STRATEGY}}', JSON.stringify(strategy))
+    .replace('{{APP_CONTEXT}}', APP_CONTEXT);
 
   try {
     const response = await callGeminiApi(TEXT_MODEL, prompt);
@@ -166,19 +189,15 @@ export const writerAgent = async (strategy: StrategyResult): Promise<string> => 
   }
 };
 
-export const designerAgent = async (title: string, content: string, imageModel: string = 'gemini-2.5-flash-image', apiKeys?: { seedream?: string }): Promise<DesignPrompts> => {
-  // Logic simplified for brevity, utilizing same backend call structure
-  let styleInstruction = imageModel === 'gemini-3-pro-image-preview' 
-    ? "Style: Infographic. INCLUDE JAPANESE TEXT." 
+export const designerAgent = async (title: string, content: string, imageModel: string = 'gemini-2.5-flash-image', apiKeys?: { seedream?: string }, promptTemplate?: string): Promise<DesignPrompts> => {
+  let styleInstruction = imageModel === 'gemini-3-pro-image-preview'
+    ? "Style: Infographic. INCLUDE JAPANESE TEXT."
     : "Style: Illustration. NO TEXT.";
 
-  const prompt = `
-    画像生成プロンプト作成。
-    タイトル: ${title}
-    内容: ${content.substring(0, 500)}...
-    ${styleInstruction}
-    出力JSON: { "thumbnail_prompt": "...", "section1_prompt": "...", "section2_prompt": "...", "section3_prompt": "..." }
-  `;
+  let prompt = promptTemplate || DEFAULT_PROMPTS.designer;
+  prompt = prompt.replace('{{TITLE}}', title)
+    .replace('{{CONTENT_SNIPPET}}', content.substring(0, 500) + '...')
+    .replace('{{STYLE_INSTRUCTION}}', styleInstruction);
 
   let designData: DesignPrompts = { thumbnail_prompt: "", section1_prompt: "", section2_prompt: "", section3_prompt: "" };
 
@@ -206,13 +225,11 @@ export const designerAgent = async (title: string, content: string, imageModel: 
   return designData;
 };
 
-export const controllerAgent = async (strategy: StrategyResult, content: string): Promise<ReviewResult> => {
-  const prompt = `
-    あなたは編集長です。
-    【戦略】${JSON.stringify(strategy)}
-    【記事】${content.substring(0, 1000)}...
-    出力JSON: { "status": "APPROVED"|"REVIEW_REQUIRED", "score": number, "comments": "..." }
-  `;
+export const controllerAgent = async (strategy: StrategyResult, content: string, promptTemplate?: string): Promise<ReviewResult> => {
+  let prompt = promptTemplate || DEFAULT_PROMPTS.controller;
+  prompt = prompt.replace('{{STRATEGY}}', JSON.stringify(strategy))
+    .replace('{{CONTENT_SNIPPET}}', content.substring(0, 1000) + '...');
+
   try {
     const response = await callGeminiApi(TEXT_MODEL, prompt, { responseMimeType: "application/json" });
     const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
