@@ -10,11 +10,20 @@ interface SettingsViewProps {
 const SettingsView: React.FC<SettingsViewProps> = ({ settings, onSave }) => {
     const [localSettings, setLocalSettings] = useState<SystemSettings>(settings);
     const [isSaving, setIsSaving] = useState(false);
+    const [remoteConfig, setRemoteConfig] = useState<Record<string, string>>({});
 
     // Sync with parent prop changes
     useEffect(() => {
         setLocalSettings(settings);
     }, [settings]);
+
+    // Fetch Remote Config (Env Vars) Status
+    useEffect(() => {
+        fetch('/api/config')
+            .then(res => res.json())
+            .then(data => setRemoteConfig(data))
+            .catch(err => console.error("Failed to fetch config status:", err));
+    }, []);
 
     const handleSave = () => {
         setIsSaving(true);
@@ -35,15 +44,14 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, onSave }) => {
         }));
     };
 
-    // Diagnostic Helpers
-    const getEnvValue = (key: string) => (typeof process !== 'undefined' && process.env) ? process.env[key] : undefined;
-
-    const ga4PropertyId = getEnvValue('GA4_PROPERTY_ID');
-    const ga4Credentials = getEnvValue('GA4_CREDENTIALS_JSON');
-    const geminiApiKey = getEnvValue('API_KEY');
+    // Diagnostic Helpers - Use remote config instead of local process.env
+    const ga4PropertyId = remoteConfig.ga4PropertyId;
+    const ga4Credentials = remoteConfig.ga4Credentials;
+    const geminiApiKey = remoteConfig.geminiApiKey;
 
     const getCredentialStatus = (val: string | undefined) => {
-        if (!val) return { label: '未設定 (Not Found)', color: 'text-red-500', bg: 'bg-red-50', icon: 'fa-times' };
+        if (!val || val === 'MISSING') return { label: '未設定 (Not Found)', color: 'text-red-500', bg: 'bg-red-50', icon: 'fa-times' };
+        if (val === 'SET') return { label: '設定済み (Valid JSON)', color: 'text-emerald-600', bg: 'bg-emerald-50', icon: 'fa-check' };
         try {
             JSON.parse(val);
             return { label: '設定済み (Valid JSON)', color: 'text-emerald-600', bg: 'bg-emerald-50', icon: 'fa-check' };
@@ -77,7 +85,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, onSave }) => {
                             </div>
                             <div>
                                 <p className="text-sm font-bold text-slate-700">Gemini API Key</p>
-                                <p className="text-xs text-slate-400">process.env.API_KEY</p>
+                                <p className="text-xs text-slate-400">Server Status</p>
                             </div>
                         </div>
                         <span className={`text-xs font-bold px-2 py-1 rounded ${geminiApiKey ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
@@ -93,14 +101,13 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, onSave }) => {
                             </div>
                             <div>
                                 <p className="text-sm font-bold text-slate-700">GA4 Property ID</p>
-                                <p className="text-xs text-slate-400">process.env.GA4_PROPERTY_ID</p>
+                                <p className="text-xs text-slate-400">Server Status</p>
                             </div>
                         </div>
                         <div className="text-right">
                             <span className={`text-xs font-bold px-2 py-1 rounded ${ga4PropertyId ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                                 {ga4PropertyId ? 'OK' : 'MISSING'}
                             </span>
-                            {ga4PropertyId && <p className="text-[10px] text-slate-400 mt-1 font-mono">{ga4PropertyId}</p>}
                         </div>
                     </div>
 
@@ -112,7 +119,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, onSave }) => {
                             </div>
                             <div>
                                 <p className="text-sm font-bold text-slate-700">GA4 Credentials (JSON)</p>
-                                <p className="text-xs text-slate-400">process.env.GA4_CREDENTIALS_JSON</p>
+                                <p className="text-xs text-slate-400">Server Status</p>
                             </div>
                         </div>
                         <span className={`text-xs font-bold px-2 py-1 rounded ${credStatus.bg} ${credStatus.color}`}>
