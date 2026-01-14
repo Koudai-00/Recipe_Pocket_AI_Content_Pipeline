@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid'; 
+import { v4 as uuidv4 } from 'uuid';
 import AgentStatus from './components/AgentStatus';
 import LogConsole from './components/LogConsole';
 import ArticleList from './components/ArticleList';
@@ -10,7 +10,7 @@ import { IMAGE_MODELS } from './constants';
 import { analystAgent, marketerAgent, writerAgent, designerAgent, controllerAgent } from './services/geminiService';
 import { postToSupabase } from './services/supabaseService';
 import { uploadArticleImages, initSupabaseClient } from './services/storageService';
-import { saveToFirestore, updateFirestoreStatus } from './services/firestoreService';
+import { saveToFirestore, updateFirestoreStatus, fetchArticles } from './services/firestoreService';
 
 // Simple ID generator
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -26,7 +26,7 @@ export default function App() {
   const [imageModel, setImageModel] = useState<string>(IMAGE_MODELS[0].value);
   const [arkApiKey, setArkApiKey] = useState<string>('');
   const [skipImages, setSkipImages] = useState<boolean>(false);
-  
+
   // Connection Status State
   const [connStatus, setConnStatus] = useState({
     ga4: 'Checking...',
@@ -40,48 +40,63 @@ export default function App() {
     schedulerEnabled: true,
     cronSchedule: '0 9 * * *',
     supabase: {
-        url: '',
-        anonKey: '',
-        authorId: '',
-        autoPost: false
+      url: '',
+      anonKey: '',
+      authorId: '',
+      autoPost: false
     }
   });
 
   // Fetch Public Config from Backend
   useEffect(() => {
     const fetchConfig = async () => {
-        try {
-            const res = await fetch('/api/config');
-            const data = await res.json();
-            
-            // Update Settings
-            setSystemSettings(prev => ({
-                ...prev,
-                supabase: {
-                    ...prev.supabase,
-                    url: data.supabaseUrl,
-                    anonKey: data.supabaseAnonKey,
-                    authorId: data.supabaseAuthorId
-                }
-            }));
-            
-            // Initialize Storage Client
-            if (data.supabaseUrl && data.supabaseAnonKey) {
-                initSupabaseClient(data.supabaseUrl, data.supabaseAnonKey);
-            }
+      try {
+        const res = await fetch('/api/config');
+        const data = await res.json();
 
-            // Update Status Indicators
-            setConnStatus({
-                ga4: data.ga4PropertyId && data.ga4Credentials ? 'Connected' : 'Missing',
-                gemini: data.geminiApiKey ? 'Connected' : 'Missing'
-            });
+        // Update Settings
+        setSystemSettings(prev => ({
+          ...prev,
+          supabase: {
+            ...prev.supabase,
+            url: data.supabaseUrl,
+            anonKey: data.supabaseAnonKey,
+            authorId: data.supabaseAuthorId
+          }
+        }));
 
-        } catch (e) {
-            console.error("Failed to fetch config from backend", e);
-            addLog(AgentType.ERROR, "バックエンド接続エラー: APIサーバーが起動していない可能性があります。", 'error');
+        // Initialize Storage Client
+        if (data.supabaseUrl && data.supabaseAnonKey) {
+          initSupabaseClient(data.supabaseUrl, data.supabaseAnonKey);
         }
+
+        // Update Status Indicators
+        setConnStatus({
+          ga4: data.ga4PropertyId && data.ga4Credentials ? 'Connected' : 'Missing',
+          gemini: data.geminiApiKey ? 'Connected' : 'Missing'
+        });
+
+      } catch (e) {
+        console.error("Failed to fetch config from backend", e);
+        addLog(AgentType.ERROR, "バックエンド接続エラー: APIサーバーが起動していない可能性があります。", 'error');
+      }
     };
     fetchConfig();
+  }, []);
+
+  // Fetch Existing Articles from Firestore
+  useEffect(() => {
+    const loadArticles = async () => {
+      try {
+        const fetched = await fetchArticles();
+        setArticles(fetched);
+        console.log(`Loaded ${fetched.length} articles from Firestore.`);
+      } catch (e) {
+        console.error("Failed to load articles:", e);
+        addLog(AgentType.ERROR, "過去記事の読み込みに失敗しました。", 'error');
+      }
+    };
+    loadArticles();
   }, []);
 
   const addLog = (agent: AgentType, message: string, level: LogEntry['level'] = 'info') => {
@@ -99,7 +114,7 @@ export default function App() {
 
     const newArticleId = generateId();
     setStatus(AgentType.ANALYST);
-    setLogs([]); 
+    setLogs([]);
     addLog(AgentType.ANALYST, "パイプラインを開始します。バックエンドAPI経由で分析を実行中...", 'info');
 
     try {
@@ -117,7 +132,7 @@ export default function App() {
       setStatus(AgentType.WRITER);
       addLog(AgentType.WRITER, "記事執筆中...", 'info');
       const rawContent = await writerAgent(strategy);
-      
+
       const parts = rawContent.split('[SPLIT]');
       const body_p1 = parts[0] || "";
       const body_p2 = parts[1] || "";
@@ -132,10 +147,10 @@ export default function App() {
       if (!skipImages) {
         setStatus(AgentType.DESIGNER);
         addLog(AgentType.DESIGNER, `画像生成中... (Model: ${imageModel})`, 'info');
-        
+
         design = await designerAgent(strategy.title, rawContent, imageModel, { seedream: arkApiKey });
         addLog(AgentType.DESIGNER, "画像を生成し、Storageへアップロード中...", 'info');
-        
+
         imageUrls = await uploadArticleImages(newArticleId, design);
         addLog(AgentType.DESIGNER, "画像処理完了", 'success');
       } else {
@@ -149,7 +164,7 @@ export default function App() {
       addLog(AgentType.CONTROLLER, "レビュー中...", 'info');
       const review = await controllerAgent(strategy, rawContent);
       let finalStatus: Article['status'] = review.status === 'APPROVED' ? 'Approved' : 'Reviewing';
-      
+
       const newArticle: Article = {
         id: newArticleId,
         date: new Date().toISOString(),
@@ -170,17 +185,17 @@ export default function App() {
 
       // Auto Post Logic
       if (review.status === 'APPROVED' && systemSettings.supabase.autoPost) {
-           addLog(AgentType.PUBLISHER, "Supabaseへ自動投稿中...", 'info');
-           try {
-             const supabaseArticle = { ...newArticle, content: rawContent };
-             await postToSupabase(supabaseArticle, systemSettings.supabase.url, systemSettings.supabase.anonKey, systemSettings.supabase.authorId);
-             
-             await updateFirestoreStatus(newArticleId, 'Posted');
-             newArticle.status = 'Posted';
-             addLog(AgentType.PUBLISHER, "投稿完了", 'success');
-           } catch (e: any) {
-             addLog(AgentType.ERROR, `自動投稿失敗: ${e.message}`, 'error');
-           }
+        addLog(AgentType.PUBLISHER, "Supabaseへ自動投稿中...", 'info');
+        try {
+          const supabaseArticle = { ...newArticle, content: rawContent };
+          await postToSupabase(supabaseArticle, systemSettings.supabase.url, systemSettings.supabase.anonKey, systemSettings.supabase.authorId);
+
+          await updateFirestoreStatus(newArticleId, 'Posted');
+          newArticle.status = 'Posted';
+          addLog(AgentType.PUBLISHER, "投稿完了", 'success');
+        } catch (e: any) {
+          addLog(AgentType.ERROR, `自動投稿失敗: ${e.message}`, 'error');
+        }
       }
 
       setArticles(prev => [newArticle, ...prev]);
@@ -200,22 +215,22 @@ export default function App() {
     if (!targetArticle) return;
 
     try {
-        const fullContent = `${targetArticle.content.body_p1}\n\n${targetArticle.content.body_p2}\n\n${targetArticle.content.body_p3}`;
-        const supabaseArticle = { ...targetArticle, content: fullContent };
+      const fullContent = `${targetArticle.content.body_p1}\n\n${targetArticle.content.body_p2}\n\n${targetArticle.content.body_p3}`;
+      const supabaseArticle = { ...targetArticle, content: fullContent };
 
-        await postToSupabase(
-            supabaseArticle, 
-            systemSettings.supabase.url, 
-            systemSettings.supabase.anonKey, 
-            systemSettings.supabase.authorId
-        );
-        await updateFirestoreStatus(articleId, 'Posted');
+      await postToSupabase(
+        supabaseArticle,
+        systemSettings.supabase.url,
+        systemSettings.supabase.anonKey,
+        systemSettings.supabase.authorId
+      );
+      await updateFirestoreStatus(articleId, 'Posted');
 
-        setArticles(prev => prev.map(a => a.id === articleId ? { ...a, status: 'Posted' } : a));
-        if (selectedArticle?.id === articleId) setSelectedArticle(prev => prev ? { ...prev, status: 'Posted' } : null);
-        addLog(AgentType.PUBLISHER, `投稿完了`, 'success');
+      setArticles(prev => prev.map(a => a.id === articleId ? { ...a, status: 'Posted' } : a));
+      if (selectedArticle?.id === articleId) setSelectedArticle(prev => prev ? { ...prev, status: 'Posted' } : null);
+      addLog(AgentType.PUBLISHER, `投稿完了`, 'success');
     } catch (e: any) {
-        addLog(AgentType.ERROR, `投稿エラー: ${e.message}`, 'error');
+      addLog(AgentType.ERROR, `投稿エラー: ${e.message}`, 'error');
     }
   };
 
@@ -233,46 +248,46 @@ export default function App() {
             </div>
           </div>
         </div>
-        
+
         {/* Connection Status Indicator */}
         <div className="px-6 py-4 border-b border-slate-800 bg-slate-800/50">
-            <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-400">Backend:</span>
-                    <span className="text-emerald-400 font-bold">Online</span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-400">Gemini Key:</span>
-                    <span className={connStatus.gemini === 'Connected' ? "text-emerald-400" : "text-red-400"}>{connStatus.gemini}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-400">GA4 Auth:</span>
-                     <span className={connStatus.ga4 === 'Connected' ? "text-emerald-400" : "text-red-400"}>{connStatus.ga4}</span>
-                </div>
+          <div className="flex flex-col gap-2">
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-slate-400">Backend:</span>
+              <span className="text-emerald-400 font-bold">Online</span>
             </div>
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-slate-400">Gemini Key:</span>
+              <span className={connStatus.gemini === 'Connected' ? "text-emerald-400" : "text-red-400"}>{connStatus.gemini}</span>
+            </div>
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-slate-400">GA4 Auth:</span>
+              <span className={connStatus.ga4 === 'Connected' ? "text-emerald-400" : "text-red-400"}>{connStatus.ga4}</span>
+            </div>
+          </div>
         </div>
 
         <div className="flex-1 flex flex-col overflow-y-auto">
-            <nav className="p-4 space-y-1">
-                {/* Navigation Buttons ... (Same as before) */}
-                <button onClick={() => setCurrentView('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left ${currentView === 'dashboard' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-                    <i className="fas fa-columns w-5 text-center"></i><span className="font-medium">ダッシュボード</span>
-                </button>
-                <button onClick={() => setCurrentView('articles')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left ${currentView === 'articles' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-                    <i className="fas fa-newspaper w-5 text-center"></i><span className="font-medium">記事一覧</span>
-                </button>
-                <button onClick={() => setCurrentView('settings')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left ${currentView === 'settings' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-                    <i className="fas fa-cog w-5 text-center"></i><span className="font-medium">設定</span>
-                </button>
-            </nav>
-            
-            <div className="mt-auto p-6 border-t border-slate-800 bg-slate-900/50">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-3">API Settings</label>
-                <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">Seedream API Key (Optional)</label>
-                    <input type="password" value={arkApiKey} onChange={(e) => setArkApiKey(e.target.value)} placeholder="Enter Key" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-xs text-white" />
-                </div>
+          <nav className="p-4 space-y-1">
+            {/* Navigation Buttons ... (Same as before) */}
+            <button onClick={() => setCurrentView('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left ${currentView === 'dashboard' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <i className="fas fa-columns w-5 text-center"></i><span className="font-medium">ダッシュボード</span>
+            </button>
+            <button onClick={() => setCurrentView('articles')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left ${currentView === 'articles' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <i className="fas fa-newspaper w-5 text-center"></i><span className="font-medium">記事一覧</span>
+            </button>
+            <button onClick={() => setCurrentView('settings')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left ${currentView === 'settings' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <i className="fas fa-cog w-5 text-center"></i><span className="font-medium">設定</span>
+            </button>
+          </nav>
+
+          <div className="mt-auto p-6 border-t border-slate-800 bg-slate-900/50">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-3">API Settings</label>
+            <div>
+              <label className="text-[10px] text-slate-400 block mb-1">Seedream API Key (Optional)</label>
+              <input type="password" value={arkApiKey} onChange={(e) => setArkApiKey(e.target.value)} placeholder="Enter Key" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-xs text-white" />
             </div>
+          </div>
         </div>
       </aside>
 
@@ -280,33 +295,33 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {currentView === 'dashboard' && (
             <>
-                {/* Header & Controls (Same as before) */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
-                    <div>
-                        <h2 className="text-2xl font-bold text-slate-900">コンテンツパイプライン</h2>
-                    </div>
-                    <div className="flex items-center gap-3 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm">
-                        <div className="flex items-center h-full px-3 border-r border-slate-100">
-                             <input type="checkbox" id="skip-images" checked={skipImages} onChange={(e) => setSkipImages(e.target.checked)} disabled={status !== AgentType.IDLE && status !== AgentType.COMPLETED && status !== AgentType.ERROR} className="w-4 h-4 text-blue-600 rounded" />
-                             <label htmlFor="skip-images" className="ml-2 text-xs font-bold text-slate-500 cursor-pointer">画像生成スキップ</label>
-                        </div>
-                        <select value={imageModel} onChange={(e) => setImageModel(e.target.value)} className="text-sm font-medium text-slate-700 bg-transparent outline-none pr-2" disabled={skipImages}>
-                             {IMAGE_MODELS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                        </select>
-                        <button onClick={runPipeline} disabled={status !== AgentType.IDLE && status !== AgentType.COMPLETED && status !== AgentType.ERROR} className={`px-6 py-3 rounded-lg font-bold shadow-md flex items-center gap-2 text-white ${status === AgentType.IDLE || status === AgentType.COMPLETED || status === AgentType.ERROR ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300'}`}>
-                             {status === AgentType.IDLE || status === AgentType.COMPLETED || status === AgentType.ERROR ? <><i className="fas fa-play"></i> 実行</> : <><i className="fas fa-circle-notch fa-spin"></i> 処理中</>}
-                        </button>
-                    </div>
+              {/* Header & Controls (Same as before) */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900">コンテンツパイプライン</h2>
                 </div>
-
-                <AgentStatus currentStatus={status} />
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
-                    <div className="lg:col-span-1 h-full"><LogConsole logs={logs} /></div>
-                    <div className="lg:col-span-2 h-full flex flex-col gap-6">
-                        <div className="flex-1 overflow-hidden"><ArticleList articles={articles} onView={setSelectedArticle} /></div>
-                    </div>
+                <div className="flex items-center gap-3 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm">
+                  <div className="flex items-center h-full px-3 border-r border-slate-100">
+                    <input type="checkbox" id="skip-images" checked={skipImages} onChange={(e) => setSkipImages(e.target.checked)} disabled={status !== AgentType.IDLE && status !== AgentType.COMPLETED && status !== AgentType.ERROR} className="w-4 h-4 text-blue-600 rounded" />
+                    <label htmlFor="skip-images" className="ml-2 text-xs font-bold text-slate-500 cursor-pointer">画像生成スキップ</label>
+                  </div>
+                  <select value={imageModel} onChange={(e) => setImageModel(e.target.value)} className="text-sm font-medium text-slate-700 bg-transparent outline-none pr-2" disabled={skipImages}>
+                    {IMAGE_MODELS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  </select>
+                  <button onClick={runPipeline} disabled={status !== AgentType.IDLE && status !== AgentType.COMPLETED && status !== AgentType.ERROR} className={`px-6 py-3 rounded-lg font-bold shadow-md flex items-center gap-2 text-white ${status === AgentType.IDLE || status === AgentType.COMPLETED || status === AgentType.ERROR ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300'}`}>
+                    {status === AgentType.IDLE || status === AgentType.COMPLETED || status === AgentType.ERROR ? <><i className="fas fa-play"></i> 実行</> : <><i className="fas fa-circle-notch fa-spin"></i> 処理中</>}
+                  </button>
                 </div>
+              </div>
+
+              <AgentStatus currentStatus={status} />
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
+                <div className="lg:col-span-1 h-full"><LogConsole logs={logs} /></div>
+                <div className="lg:col-span-2 h-full flex flex-col gap-6">
+                  <div className="flex-1 overflow-hidden"><ArticleList articles={articles} onView={setSelectedArticle} /></div>
+                </div>
+              </div>
             </>
           )}
 

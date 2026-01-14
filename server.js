@@ -209,6 +209,34 @@ app.post('/api/firestore/save', async (req, res) => {
   }
 });
 
+// --- API: Firestore List Proxy ---
+app.get('/api/firestore/articles', async (req, res) => {
+  try {
+    const creds = JSON.parse(process.env.GA4_CREDENTIALS_JSON || '{}');
+    const projectId = creds.project_id;
+    if (!projectId) throw new Error("Project ID missing in credentials");
+
+    const accessToken = await getGoogleAccessToken(['https://www.googleapis.com/auth/datastore']);
+
+    // Fetch documents (limit 50, ordered by createTime desc logic handled by client or query?)
+    // Firestore REST API sort is slightly complex with structured query, 
+    // for now let's just fetch default list and sort in client.
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/articles?pageSize=50`;
+
+    const apiRes = await fetch(url, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+
+    if (!apiRes.ok) throw new Error(await apiRes.text());
+    const data = await apiRes.json();
+    res.json(data);
+  } catch (error) {
+    console.error("Firestore List Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- API: Firestore Status Update Proxy ---
 app.post('/api/firestore/status', async (req, res) => {
   try {
