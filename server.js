@@ -6,11 +6,14 @@ import { GoogleGenAI } from '@google/genai';
 import { KJUR } from 'jsrsasign';
 import cors from 'cors';
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
+import { setupScheduler } from './scheduler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+setupScheduler(app);
+
 const PORT = process.env.PORT || 8080;
 
 app.use(express.json({ limit: '10mb' }));
