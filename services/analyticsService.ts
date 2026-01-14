@@ -1,3 +1,6 @@
+import { getDailyReport, saveDailyReport } from './firestoreService';
+import { MonthlyAnalyticsMetrics } from '../types';
+
 // Type definitions
 interface AnalyticsData {
   activeUsers: number;
@@ -8,8 +11,6 @@ interface AnalyticsData {
     interest: string;
   };
 }
-
-import { getDailyReport, saveDailyReport } from './firestoreService';
 
 export const getRealAnalyticsData = async (): Promise<AnalyticsData> => {
   try {
@@ -59,5 +60,18 @@ export const getRealAnalyticsData = async (): Promise<AnalyticsData> => {
   } catch (error) {
     console.error("Failed to fetch real GA4 data:", error);
     throw new Error(`GA4データ取得失敗: ${error instanceof Error ? error.message : String(error)}`);
+  }
+};
+
+export const getMonthlyAnalytics = async (): Promise<MonthlyAnalyticsMetrics> => {
+  try {
+    const response = await fetch('/api/analytics/monthly');
+    if (!response.ok) {
+      throw new Error("Failed to fetch monthly analytics");
+    }
+    return await response.json();
+  } catch (e) {
+    console.error("Monthly Analytics Fetch Error:", e);
+    throw e;
   }
 };

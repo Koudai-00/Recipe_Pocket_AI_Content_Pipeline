@@ -1,5 +1,6 @@
-import { AnalysisResult, StrategyResult, DesignPrompts, ReviewResult, Article } from "../types";
-import { getRealAnalyticsData } from "./analyticsService";
+import { AnalysisResult, StrategyResult, DesignPrompts, ReviewResult, Article, MonthlyAnalyticsMetrics, MonthlyReport, MonthlyReportAnalysis } from "../types";
+import { getRealAnalyticsData, getMonthlyAnalytics } from "./analyticsService";
+import { fetchMonthlyReports } from "./firestoreService";
 import { APP_CONTEXT } from "../constants";
 
 // Helper to call Backend API
@@ -237,5 +238,63 @@ export const controllerAgent = async (strategy: StrategyResult, content: string,
     return cleanJson(text);
   } catch (e) {
     return { status: "REVIEW_REQUIRED", score: 0, comments: "Error" };
+  }
+};
+
+// Add to Default Prompts
+const MONTHLY_REPORT_PROMPT = `あなたは「Recipe Pocket」の最高戦略責任者（CSO）です。
+【当月の実績】{{CURRENT_METRICS}}
+【過去のレポート（要約）】{{PAST_REPORTS}}
+【指示】
+1. 当月の成果を評価してください（前月比などを考慮）。
+2. 次月のKPI（PV目標値と注力カテゴリ）を設定してください。
+3. 具体的な戦略（記事の方向性）とアクションプランを提示してください。
+
+出力形式 (JSON):
+{
+  "evaluation": "...",
+  "kpis": { "pv_target": number, "focus_category": "..." },
+  "strategy_focus": "...",
+  "action_items": ["...", "..."]
+}`;
+
+export const monthlyReportAgent = async (): Promise<{ report: MonthlyReport, analysis: MonthlyReportAnalysis } | null> => {
+  try {
+    console.log("Fetching Monthly Analytics...");
+    const metrics = await getMonthlyAnalytics();
+
+    console.log("Fetching Past Reports...");
+    const pastReports = await fetchMonthlyReports();
+    const pastSummary = pastReports.slice(0, 3).map(r =>
+      `[${r.month}] KPI: PV${r.analysis?.kpis?.pv_target}, Focus:${r.analysis?.kpis?.focus_category}, Eval:${r.analysis?.evaluation}`
+    ).join("\n");
+
+    console.log("Generating Strategic Analysis...");
+    let prompt = MONTHLY_REPORT_PROMPT;
+    prompt = prompt.replace('{{CURRENT_METRICS}}', JSON.stringify(metrics))
+      .replace('{{PAST_REPORTS}}', pastSummary || "なし");
+
+    const response = await callGeminiApi(TEXT_MODEL, prompt, { responseMimeType: "application/json" });
+    const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error("No analysis generated");
+
+    const analysis: MonthlyReportAnalysis = cleanJson(text);
+
+    const today = new Date();
+    const monthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+
+    const fullReport: MonthlyReport = {
+      id: monthStr,
+      month: monthStr,
+      created_at: today.toISOString(),
+      metrics: metrics,
+      analysis: analysis
+    };
+
+    return { report: fullReport, analysis };
+
+  } catch (e) {
+    console.error("Monthly Report Agent Error:", e);
+    return null;
   }
 };

@@ -5,6 +5,7 @@ import LogConsole from './components/LogConsole';
 import ArticleList from './components/ArticleList';
 import ArticlePreview from './components/ArticlePreview';
 import SettingsView from './components/SettingsView';
+import MonthlyReportView from './components/MonthlyReportView';
 import { AgentType, LogEntry, Article, SystemSettings, DesignPrompts } from './types';
 import { IMAGE_MODELS } from './constants';
 import { analystAgent, marketerAgent, writerAgent, designerAgent, controllerAgent } from './services/geminiService';
@@ -293,6 +294,9 @@ export default function App() {
             <button onClick={() => setCurrentView('articles')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left ${currentView === 'articles' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
               <i className="fas fa-newspaper w-5 text-center"></i><span className="font-medium">記事一覧</span>
             </button>
+            <button onClick={() => setCurrentView('analytics')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left ${currentView === 'analytics' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <i className="fas fa-chart-line w-5 text-center"></i><span className="font-medium">月次レポート</span>
+            </button>
             <button onClick={() => setCurrentView('settings')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left ${currentView === 'settings' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
               <i className="fas fa-cog w-5 text-center"></i><span className="font-medium">設定</span>
             </button>
@@ -342,6 +346,7 @@ export default function App() {
             </>
           )}
 
+          {currentView === 'analytics' && <MonthlyReportView addLog={addLog} />}
           {currentView === 'settings' && <SettingsView settings={systemSettings} onSave={setSystemSettings} />}
           {/* ... Other views ... */}
         </div>

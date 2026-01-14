@@ -211,3 +211,52 @@ export const saveDailyReport = async (date: string, data: any): Promise<void> =>
         })
     });
 };
+
+// --- Monthly Report Functions ---
+
+export const fetchMonthlyReports = async (): Promise<any[]> => {
+    try {
+        const response = await fetch('/api/firestore/monthly_reports');
+        if (!response.ok) return [];
+        const json = await response.json();
+        const documents = json.documents || [];
+
+        return documents.map((doc: any) => {
+            const fields = doc.fields || {};
+            const result: any = {};
+            for (const k in fields) {
+                result[k] = fromFirestoreValue(fields[k]);
+            }
+            // ID
+            result.id = doc.name.split('/').pop();
+            return result;
+        });
+    } catch (e) {
+        console.error("Failed to fetch monthly reports:", e);
+        return [];
+    }
+};
+
+export const saveMonthlyReportDoc = async (report: any): Promise<void> => {
+    // Convert to Firestore fields
+    const firestoreFields = toFirestoreValue(report);
+
+    if (!firestoreFields.mapValue || !firestoreFields.mapValue.fields) {
+        console.error("Invalid data structure for monthly report save");
+        return;
+    }
+
+    try {
+        await fetch('/api/firestore/monthly_reports', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                report: { id: report.id },
+                documentBody: { fields: firestoreFields.mapValue.fields }
+            })
+        });
+    } catch (e) {
+        console.error("Failed to save monthly report:", e);
+        throw e;
+    }
+};

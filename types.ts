@@ -111,3 +111,34 @@ export interface SystemSettings {
   supabase: SupabaseConfig;
   agentPrompts?: AgentPrompts;
 }
+
+export interface MonthlyAnalyticsMetrics {
+  sessions: number;
+  activeUsers: number;
+  screenPageViews: number;
+  averageSessionDuration: number;
+  bounceRate: number;
+  organicSearchTraffic: number;
+
+  // Previous Month for Comparison
+  prevSessions: number;
+  prevPageViews: number;
+}
+
+export interface MonthlyReportAnalysis {
+  evaluation: string;
+  kpis: {
+    pv_target: number;
+    focus_category: string;
+  };
+  strategy_focus: string;
+  action_items: string[];
+}
+
+export interface MonthlyReport {
+  id: string; // YYYY-MM
+  month: string;
+  created_at: string;
+  metrics: MonthlyAnalyticsMetrics;
+  analysis: MonthlyReportAnalysis;
+}
