@@ -160,3 +160,54 @@ export const fetchArticles = async (): Promise<Article[]> => {
         };
     }).sort((a: Article, b: Article) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
+
+export const getDailyReport = async (date: string): Promise<any | null> => {
+    try {
+        const response = await fetch(`/api/firestore/reports/${date}`);
+        if (response.status === 404) return null;
+
+        const json = await response.json();
+        if (!json.found || !json.data) return null;
+
+        // Extract fields
+        const fields = json.data.fields || {};
+        const result: any = {};
+        for (const k in fields) {
+            result[k] = fromFirestoreValue(fields[k]);
+        }
+        return result;
+    } catch (e) {
+        console.warn("Error fetching daily report cache:", e);
+        return null;
+    }
+};
+
+export const saveDailyReport = async (date: string, data: any): Promise<void> => {
+    // Convert to Firestore fields
+    const firestoreFields = toFirestoreValue(data);
+    // toFirestoreValue checks input type. If input is object, returns { mapValue: { fields: ... } }
+    // We need just the fields object for the root document if using direct mapping, 
+    // but our toFirestoreValue is recursive.
+    // If we pass an object to toFirestoreValue, it returns { mapValue: { fields: ... } }
+    // The API expects { fields: { ... } }.
+    // So:
+
+    // Safety check
+    if (!firestoreFields.mapValue || !firestoreFields.mapValue.fields) {
+        console.error("Invalid data structure for report save");
+        return;
+    }
+
+    const documentBody = {
+        fields: firestoreFields.mapValue.fields
+    };
+
+    await fetch('/api/firestore/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            date,
+            documentBody
+        })
+    });
+};
