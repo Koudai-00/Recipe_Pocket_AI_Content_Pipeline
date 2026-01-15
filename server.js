@@ -359,67 +359,66 @@ app.get('/api/analytics/monthly', async (req, res) => {
 
     // To get Organic: dimension 'sessionDefaultChannelGroup' == 'Organic Search'.
 
+    // Calculate Last Month Range dynamically
+    const now = new Date();
+    // Move to first day of current month, then subtract 1 month
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    // Last day of last month is Day 0 of current month
+    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+
+    const formatDate = (d) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const startDate = formatDate(startOfLastMonth);
+    const endDate = formatDate(endOfLastMonth);
+
+    console.log(`Fetching monthly analytics for range: ${startDate} to ${endDate}`);
+
     const requestBody = {
-      // Calculate Last Month Range dynamically
-      const now = new Date();
-      // Move to first day of current month, then subtract 1 month
-      const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      // Last day of last month is Day 0 of current month
-      const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+      dateRanges: [
+        { startDate, endDate } // Current Report Range (Last Month)
+      ],
+      metrics: [
+        { name: 'sessions' },
+        { name: 'activeUsers' },
+        { name: 'screenPageViews' },
+        { name: 'averageSessionDuration' },
+        { name: 'bounceRate' }
+      ]
+    };
 
-      const formatDate = (d) => {
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      };
+    const apiRes = await fetch(url, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
 
-      const startDate = formatDate(startOfLastMonth);
-      const endDate = formatDate(endOfLastMonth);
+    if (!apiRes.ok) throw new Error(await apiRes.text());
+    const data = await apiRes.json();
 
-      console.log(`Fetching monthly analytics for range: ${startDate} to ${endDate}`);
+    // Parse
+    // Parse
+    const row = data.rows?.[0];
+    const metrics = {
+      sessions: row ? parseInt(row.metricValues[0].value) : 0,
+      activeUsers: row ? parseInt(row.metricValues[1].value) : 0,
+      screenPageViews: row ? parseInt(row.metricValues[2].value) : 0,
+      averageSessionDuration: row ? parseFloat(row.metricValues[3].value) : 0,
+      bounceRate: row ? parseFloat(row.metricValues[4].value) : 0,
+      organicSearchTraffic: 0,
+      prevSessions: 0,
+      prevPageViews: 0
+    };
 
-      const requestBody = {
-        dateRanges: [
-          { startDate, endDate } // Current Report Range (Last Month)
-        ],
-        metrics: [
-          { name: 'sessions' },
-          { name: 'activeUsers' },
-          { name: 'screenPageViews' },
-          { name: 'averageSessionDuration' },
-          { name: 'bounceRate' }
-        ]
-      };
-
-      const apiRes = await fetch(url, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      });
-
-      if(!apiRes.ok) throw new Error(await apiRes.text());
-const data = await apiRes.json();
-
-// Parse
-// Parse
-const row = data.rows?.[0];
-const metrics = {
-  sessions: row ? parseInt(row.metricValues[0].value) : 0,
-  activeUsers: row ? parseInt(row.metricValues[1].value) : 0,
-  screenPageViews: row ? parseInt(row.metricValues[2].value) : 0,
-  averageSessionDuration: row ? parseFloat(row.metricValues[3].value) : 0,
-  bounceRate: row ? parseFloat(row.metricValues[4].value) : 0,
-  organicSearchTraffic: 0,
-  prevSessions: 0,
-  prevPageViews: 0
-};
-
-res.json(metrics || {});
+    res.json(metrics || {});
   } catch (error) {
-  console.error("Monthly Analytics Error:", error);
-  res.status(500).json({ error: error.message });
-}
+    console.error("Monthly Analytics Error:", error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // --- API: Monthly Reports Firestore Proxy ---
