@@ -67,7 +67,8 @@ export const getMonthlyAnalytics = async (): Promise<MonthlyAnalyticsMetrics> =>
   try {
     const response = await fetch('/api/analytics/monthly');
     if (!response.ok) {
-      throw new Error("Failed to fetch monthly analytics");
+      const errData = await response.json();
+      throw new Error(errData.error || "Failed to fetch monthly analytics");
     }
     return await response.json();
   } catch (e) {

@@ -258,7 +258,9 @@ const MONTHLY_REPORT_PROMPT = `あなたは「Recipe Pocket」の最高戦略責
   "action_items": ["...", "..."]
 }`;
 
-export const monthlyReportAgent = async (): Promise<{ report: MonthlyReport, analysis: MonthlyReportAnalysis } | null> => {
+// ... (imports are same, modifying function)
+
+export const monthlyReportAgent = async (): Promise<{ report: MonthlyReport, analysis: MonthlyReportAnalysis }> => {
   try {
     console.log("Fetching Monthly Analytics...");
     const metrics = await getMonthlyAnalytics();
@@ -295,6 +297,6 @@ export const monthlyReportAgent = async (): Promise<{ report: MonthlyReport, ana
 
   } catch (e) {
     console.error("Monthly Report Agent Error:", e);
-    return null;
+    throw e;
   }
 };
