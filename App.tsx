@@ -86,17 +86,28 @@ export default function App() {
 
     const fetchPrompts = async () => {
       try {
-        const res = await fetch('/api/settings/prompts');
-        const data = await res.json();
-        if (data.analyst) {
-          setSystemSettings((prev: SystemSettings) => ({
-            ...prev,
-            agentPrompts: data
-          }));
-          console.log("Loaded custom prompts from Firestore");
+        const [promptsRes, generalRes] = await Promise.all([
+          fetch('/api/settings/prompts'),
+          fetch('/api/settings/general')
+        ]);
+
+        const promptsData = await promptsRes.json();
+        const generalData = await generalRes.json();
+
+        setSystemSettings((prev: SystemSettings) => ({
+          ...prev,
+          ...(Object.keys(generalData).length > 0 ? generalData : {}),
+          agentPrompts: promptsData.analyst ? promptsData : prev.agentPrompts
+        }));
+
+        // Also update local state for imageModel if it was loaded
+        if (generalData.defaultImageModel) {
+          setImageModel(generalData.defaultImageModel);
         }
+
+        console.log("Loaded settings from Firestore");
       } catch (e) {
-        console.error("Failed to fetch prompts:", e);
+        console.error("Failed to fetch settings:", e);
       }
     };
     fetchPrompts();

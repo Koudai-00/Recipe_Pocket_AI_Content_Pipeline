@@ -26,13 +26,38 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, onSave }) => {
             .catch(err => console.error("Failed to fetch config status:", err));
     }, []);
 
-    const handleSave = () => {
+    const handleSave = async () => {
         setIsSaving(true);
-        // Simulate save delay
-        setTimeout(() => {
+        try {
+            // Save General Settings
+            await fetch('/api/settings/general', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    articlesPerRun: localSettings.articlesPerRun,
+                    defaultImageModel: localSettings.defaultImageModel,
+                    schedulerEnabled: localSettings.schedulerEnabled,
+                    cronSchedule: localSettings.cronSchedule
+                })
+            });
+
+            // Save Prompts
+            if (localSettings.agentPrompts) {
+                await fetch('/api/settings/prompts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(localSettings.agentPrompts)
+                });
+            }
+
             onSave(localSettings);
+            alert('設定を保存しました');
+        } catch (error) {
+            console.error('Save failed:', error);
+            alert('保存に失敗しました');
+        } finally {
             setIsSaving(false);
-        }, 800);
+        }
     };
 
     const updateSupabase = (field: string, value: any) => {

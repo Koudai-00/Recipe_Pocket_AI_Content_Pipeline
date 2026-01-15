@@ -334,6 +334,71 @@ app.post('/api/settings/prompts', async (req, res) => {
   }
 });
 
+// --- API: General Settings ---
+app.get('/api/settings/general', async (req, res) => {
+  try {
+    const creds = JSON.parse(process.env.GA4_CREDENTIALS_JSON || '{}');
+    const projectId = creds.project_id;
+    if (!projectId) throw new Error("Project ID missing");
+
+    const accessToken = await getGoogleAccessToken(['https://www.googleapis.com/auth/datastore']);
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/settings/general_config`;
+
+    const apiRes = await fetch(url, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+
+    if (apiRes.status === 404) return res.json({}); // Not found is OK
+
+    if (!apiRes.ok) throw new Error(await apiRes.text());
+    const data = await apiRes.json();
+    const fields = data.fields || {};
+
+    // Map Firestore fields to JSON
+    res.json({
+      articlesPerRun: fields.articlesPerRun ? parseInt(fields.articlesPerRun.integerValue) : 1,
+      defaultImageModel: fields.defaultImageModel?.stringValue || 'seedream-4.5',
+      schedulerEnabled: fields.schedulerEnabled?.booleanValue || false,
+      cronSchedule: fields.cronSchedule?.stringValue || '0 9 * * *'
+    });
+  } catch (error) {
+    console.error("General Settings Fetch Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/settings/general', async (req, res) => {
+  try {
+    const { articlesPerRun, defaultImageModel, schedulerEnabled, cronSchedule } = req.body;
+    const creds = JSON.parse(process.env.GA4_CREDENTIALS_JSON || '{}');
+    const projectId = creds.project_id;
+    if (!projectId) throw new Error("Project ID missing");
+
+    const accessToken = await getGoogleAccessToken(['https://www.googleapis.com/auth/datastore']);
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/settings/general_config`;
+
+    const fields = {
+      articlesPerRun: { integerValue: articlesPerRun },
+      defaultImageModel: { stringValue: defaultImageModel },
+      schedulerEnabled: { booleanValue: schedulerEnabled },
+      cronSchedule: { stringValue: cronSchedule }
+    };
+
+    const apiRes = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields })
+    });
+
+    if (!apiRes.ok) throw new Error(await apiRes.text());
+    res.json({ success: true });
+  } catch (error) {
+    console.error("General Settings Save Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- API: Monthly Analytics (Extended) ---
 app.get('/api/analytics/monthly', async (req, res) => {
   try {
