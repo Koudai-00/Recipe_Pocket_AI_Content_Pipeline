@@ -66,7 +66,14 @@ const ArticleList: React.FC<ArticleListProps> = ({ articles, onView }) => {
                     <div className="text-xs text-slate-400 mt-1">{article.analysis_report?.direction || '初期化中...'}</div>
                   </td>
                   <td className="px-6 py-4">
-                    {new Date(article.date).toLocaleTimeString()}
+                    {(() => {
+                      const d = new Date(article.date);
+                      const month = String(d.getMonth() + 1).padStart(2, '0');
+                      const day = String(d.getDate()).padStart(2, '0');
+                      const hour = String(d.getHours()).padStart(2, '0');
+                      const min = String(d.getMinutes()).padStart(2, '0');
+                      return `${month}/${day}-${hour}:${min}`;
+                    })()}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button
