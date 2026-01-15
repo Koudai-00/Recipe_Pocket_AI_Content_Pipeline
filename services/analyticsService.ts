@@ -33,7 +33,16 @@ export const getRealAnalyticsData = async (): Promise<AnalyticsData> => {
     }
 
     const report = await response.json();
-    const rows = report.rows || [];
+    const rawRows = report.rows || [];
+
+    // Filter out internal/admin paths
+    const rows = rawRows.filter((row: any) => {
+      const pagePath = row.dimensionValues[0].value; // Assuming pagePath is 1st dimension
+      // const pageTitle = row.dimensionValues[1].value;
+      return !pagePath.startsWith('/dashboard') &&
+        !pagePath.startsWith('/admin') &&
+        !pagePath.includes('bulk-move');
+    });
 
     const totalUsers = rows.reduce((acc: number, row: any) => acc + parseInt(row.metricValues[0].value || '0', 10), 0);
     const highTrafficPages = rows.slice(0, 5).map((row: any) => {

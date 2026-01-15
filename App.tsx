@@ -158,11 +158,20 @@ export default function App() {
 
       addLog(AgentType.WRITER, `執筆完了。(Total: ${rawContent.length}文字)`, 'success');
 
-      // 4. Designer (Conditional)
-      let design: DesignPrompts;
+      // 4. Controller (Review FIRST)
+      setStatus(AgentType.CONTROLLER);
+      addLog(AgentType.CONTROLLER, "記事内容をレビュー中...", 'info');
+      const review = await controllerAgent(strategy, rawContent, systemSettings.agentPrompts?.controller);
+      const isApproved = review.status === 'APPROVED';
+      const finalStatus: Article['status'] = isApproved ? 'Approved' : 'Reviewing';
+
+      addLog(AgentType.CONTROLLER, `レビュー完了: ${isApproved ? '承認 (画像生成へ進みます)' : '修正が必要 (画像生成をスキップします)'}`, isApproved ? 'success' : 'warning');
+
+      // 5. Designer (Conditional: Only if Approved)
+      let design: DesignPrompts = { thumbnail_prompt: "", section1_prompt: "", section2_prompt: "", section3_prompt: "" };
       let imageUrls: string[] = [];
 
-      if (!skipImages) {
+      if (isApproved && !skipImages) {
         setStatus(AgentType.DESIGNER);
         addLog(AgentType.DESIGNER, `画像生成中... (Model: ${imageModel})`, 'info');
 
@@ -172,16 +181,12 @@ export default function App() {
         imageUrls = await uploadArticleImages(newArticleId, design);
         addLog(AgentType.DESIGNER, "画像処理完了", 'success');
       } else {
-        addLog(AgentType.DESIGNER, "画像生成をスキップ", 'warning');
-        design = { thumbnail_prompt: "", section1_prompt: "", section2_prompt: "", section3_prompt: "" };
-        imageUrls = [];
+        if (!isApproved) {
+          addLog(AgentType.DESIGNER, "レビュー未承認のため画像生成をスキップ", 'warning');
+        } else {
+          addLog(AgentType.DESIGNER, "画像生成設定がOFFのためスキップ", 'warning');
+        }
       }
-
-      // 5. Controller
-      setStatus(AgentType.CONTROLLER);
-      addLog(AgentType.CONTROLLER, "レビュー中...", 'info');
-      const review = await controllerAgent(strategy, rawContent, systemSettings.agentPrompts?.controller);
-      let finalStatus: Article['status'] = review.status === 'APPROVED' ? 'Approved' : 'Reviewing';
 
       const newArticle: Article = {
         id: newArticleId,
@@ -202,7 +207,7 @@ export default function App() {
       addLog(AgentType.CONTROLLER, "Firestoreへ保存完了 (Backend Proxy)", 'info');
 
       // Auto Post Logic
-      if (review.status === 'APPROVED' && systemSettings.supabase.autoPost) {
+      if (isApproved && systemSettings.supabase.autoPost) {
         addLog(AgentType.PUBLISHER, "Supabaseへ自動投稿中...", 'info');
         try {
           const supabaseArticle = { ...newArticle, content: rawContent };
