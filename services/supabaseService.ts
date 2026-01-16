@@ -5,9 +5,9 @@ import { Article, ArticleContent } from '../types';
  * Inserts a new article into the 'posts' table in Supabase.
  */
 export const postToSupabase = async (
-  article: Omit<Article, 'content'> & { content: string | ArticleContent }, 
-  url: string, 
-  key: string, 
+  article: Omit<Article, 'content'> & { content: string | ArticleContent },
+  url: string,
+  key: string,
   authorId: string
 ): Promise<string> => {
   if (!url || !key) {
@@ -19,16 +19,16 @@ export const postToSupabase = async (
   // Determine content string
   let contentToPost = "";
   if (typeof article.content === 'string') {
-      contentToPost = article.content;
+    contentToPost = article.content;
   } else {
-      contentToPost = `${article.content.body_p1}\n\n${article.content.body_p2}\n\n${article.content.body_p3}`;
+    contentToPost = `${article.content.body_p1}\n\n${article.content.body_p2}\n\n${article.content.body_p3}`;
   }
 
   // PRIORITIZE uploaded URL over Base64 string
   // article.image_urls[0] is the thumbnail URL from storageService
   const thumbnailUrl = (article.image_urls && article.image_urls.length > 0 && article.image_urls[0])
-    ? article.image_urls[0] 
-    : (article.design?.thumbnail_base64 || null);
+    ? article.image_urls[0]
+    : undefined;
 
   const { data, error } = await supabase
     .from('posts')

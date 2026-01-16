@@ -32,6 +32,7 @@ const loadSecrets = async () => {
     { name: 'GEMINI_API_KEY', env: 'API_KEY' },
     { name: 'SUPABASE_URL', env: 'SUPABASE_URL' },
     { name: 'SUPABASE_SERVICE_ANON_KEY', env: 'SUPABASE_SERVICE_ANON_KEY' },
+    { name: 'SUPABASE_AUTHOR_ID', env: 'SUPABASE_AUTHOR_ID' },
     { name: 'GA4_CREDENTIALS_JSON', env: 'GA4_CREDENTIALS_JSON' },
     { name: 'GA4_PROPERTY_ID', env: 'GA4_PROPERTY_ID' }
   ];
@@ -101,7 +102,7 @@ const getGoogleAccessToken = async (scopes) => {
 app.get('/api/config', (req, res) => {
   res.json({
     supabaseUrl: process.env.SUPABASE_URL || '',
-    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
+    supabaseAnonKey: process.env.SUPABASE_SERVICE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '',
     supabaseAuthorId: process.env.SUPABASE_AUTHOR_ID || '',
     ga4PropertyId: process.env.GA4_PROPERTY_ID ? 'SET' : '', // Just status check
     geminiApiKey: process.env.API_KEY ? 'SET' : '', // Just status check
