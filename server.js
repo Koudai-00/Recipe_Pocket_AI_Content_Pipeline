@@ -564,6 +564,25 @@ app.post('/api/firestore/monthly_reports', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// --- Helper: Generate URL-safe slug ---
+const generateSlug = (title) => {
+  const timestamp = Date.now();
+  const randomStr = Math.random().toString(36).substring(2, 8);
+
+  let slug = title
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF-]/g, '')
+    .replace(/\s+/g, '-')
+    .substring(0, 50);
+
+  if (!slug) {
+    slug = 'article';
+  }
+
+  return `${slug}-${timestamp}-${randomStr}`;
+};
+
 // --- API: CMS Post (Supabase) Proxy ---
 app.post('/api/cms/post', async (req, res) => {
   try {
@@ -572,7 +591,6 @@ app.post('/api/cms/post', async (req, res) => {
     // Check if Service Role Key is available
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ANON_KEY;
-    const authorId = process.env.SUPABASE_AUTHOR_ID;
 
     if (!supabaseUrl || !supabaseKey) {
       throw new Error('Supabase credentials (URL or Key) are missing in settings.');
@@ -595,22 +613,28 @@ app.post('/api/cms/post', async (req, res) => {
       ? article.image_urls[0]
       : undefined;
 
+    // Generate slug from title
+    const slug = generateSlug(article.title);
+    const now = new Date().toISOString();
+
     console.log(`Posting to Supabase CMS: ${article.title}`);
     console.log(`URL: ${supabaseUrl}`);
     console.log(`Using key type: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Service Role Key' : 'Anon Key'}`);
+    console.log(`Generated slug: ${slug}`);
 
     const { data, error } = await supabase
       .from('articles')
       .insert([
         {
           title: article.title,
+          slug: slug,
           content: contentToPost,
-          status: 'published',
           thumbnail_url: thumbnailUrl,
-          author_id: authorId || undefined,
-          created_at: new Date().toISOString(),
-          view_count: 0,
-          is_featured: false
+          published: true,
+          published_at: now,
+          created_at: now,
+          updated_at: now,
+          view_count: 0
         }
       ])
       .select();
