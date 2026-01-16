@@ -80,6 +80,7 @@ export interface Article {
   // Legacy/Helper fields for UI compatibility
   title?: string;
   topic?: string;
+  isImageGenSkipped?: boolean;
 }
 
 export interface PipelineState {

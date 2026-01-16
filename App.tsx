@@ -210,7 +210,8 @@ export default function App() {
         content: { title: strategy.title, body_p1, body_p2, body_p3 },
         image_urls: imageUrls,
         review,
-        design
+        design,
+        isImageGenSkipped: skipImages
       };
 
       // Save to Firestore via Backend
@@ -264,6 +265,83 @@ export default function App() {
       addLog(AgentType.PUBLISHER, `投稿完了`, 'success');
     } catch (e: any) {
       addLog(AgentType.ERROR, `投稿エラー: ${e.message}`, 'error');
+    }
+  };
+
+  const handleRewrite = async (article: Article) => {
+    if (status !== AgentType.IDLE && status !== AgentType.COMPLETED && status !== AgentType.ERROR) return;
+
+    setStatus(AgentType.WRITER);
+    setLogs([]);
+    addLog(AgentType.WRITER, `記事ID: ${article.id} のリライトを開始します。`, 'info');
+
+    try {
+      const rewriteFeedback = article.review?.comments || "品質向上のため、全体的なブラッシュアップをお願いします。";
+      const currentContentFull = `${article.content.body_p1}\n${article.content.body_p2}\n${article.content.body_p3}`;
+
+      // 1. Rewrite
+      addLog(AgentType.WRITER, "記事を再執筆中... (レビュー指摘を反映)", 'info');
+      const rawContent = await writerAgent(
+        article.marketing_strategy,
+        systemSettings.agentPrompts?.writer,
+        { feedback: rewriteFeedback, currentContent: currentContentFull }
+      );
+
+      const parts = rawContent.split('[SPLIT]');
+      const body_p1 = parts[0] || "";
+      const body_p2 = parts[1] || "";
+      const body_p3 = parts[2] || "";
+
+      addLog(AgentType.WRITER, "リライト完了。", 'success');
+
+      // 2. Re-Review
+      setStatus(AgentType.CONTROLLER);
+      addLog(AgentType.CONTROLLER, "修正記事を再レビュー中...", 'info');
+      const review = await controllerAgent(article.marketing_strategy, rawContent, systemSettings.agentPrompts?.controller);
+      const isApproved = review.status === 'APPROVED';
+
+      addLog(AgentType.CONTROLLER, `再レビュー結果: ${isApproved ? '承認' : '再修正推奨'} (Score: ${review.score})`, isApproved ? 'success' : 'warning');
+
+      // 3. Image Generation (Only if approved AND NOT skipped initially)
+      let design = article.design || { thumbnail_prompt: "", section1_prompt: "", section2_prompt: "", section3_prompt: "" };
+      let imageUrls = article.image_urls;
+
+      if (isApproved) {
+        if (article.isImageGenSkipped) {
+          addLog(AgentType.DESIGNER, "初回生成時にスキップ設定されていたため、画像生成をスキップします。", 'warning');
+        } else {
+          setStatus(AgentType.DESIGNER);
+          addLog(AgentType.DESIGNER, `画像生成中... (Model: ${imageModel})`, 'info');
+          design = await designerAgent(article.title || "", rawContent, imageModel, { seedream: arkApiKey }, systemSettings.agentPrompts?.designer);
+
+          addLog(AgentType.DESIGNER, "画像をStorageへアップロード中...", 'info');
+          imageUrls = await uploadArticleImages(article.id, design); // Existing ID
+          addLog(AgentType.DESIGNER, "画像更新完了", 'success');
+        }
+      }
+
+      // 4. Update
+      const updatedArticle: Article = {
+        ...article,
+        status: isApproved ? 'Approved' : 'Reviewing',
+        content: { title: article.content.title, body_p1, body_p2, body_p3 },
+        review,
+        design,
+        image_urls: imageUrls,
+        date: new Date().toISOString() // Update timestamp? Maybe update 'updatedAt' if exists, but for list sort, date update is fine.
+      };
+
+      await saveToFirestore(updatedArticle);
+      addLog(AgentType.CONTROLLER, "更新データを保存しました。", 'success');
+
+      setArticles(prev => prev.map(a => a.id === article.id ? updatedArticle : a));
+      if (selectedArticle?.id === article.id) setSelectedArticle(updatedArticle);
+      setStatus(AgentType.COMPLETED);
+
+    } catch (e: any) {
+      console.error(e);
+      setStatus(AgentType.ERROR);
+      addLog(AgentType.ERROR, `リライトエラー: ${e.message}`, 'error');
     }
   };
 
@@ -373,6 +451,7 @@ export default function App() {
               article={selectedArticle}
               onBack={() => setCurrentView('articles')}
               onPost={handlePostArticle}
+              onRewrite={handleRewrite}
             />
           )}
 

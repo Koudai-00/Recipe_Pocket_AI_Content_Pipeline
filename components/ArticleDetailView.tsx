@@ -6,15 +6,17 @@ interface ArticleDetailViewProps {
     article: Article | null;
     onBack: () => void;
     onPost?: (id: string) => Promise<void>;
+    onRewrite?: (article: Article) => Promise<void>;
 }
 
 type Tab = 'preview' | 'reports';
 type ReportTab = 'analysis' | 'strategy' | 'design' | 'review';
 
-const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, onPost }) => {
+const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, onPost, onRewrite }) => {
     const [activeTab, setActiveTab] = useState<Tab>('preview');
     const [activeReport, setActiveReport] = useState<ReportTab>('analysis');
     const [isPosting, setIsPosting] = useState(false);
+    const [isRewriting, setIsRewriting] = useState(false);
 
     if (!article) return <div className="p-8 text-center text-slate-500">記事が見つかりません</div>;
 
@@ -25,6 +27,17 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
                 await onPost(article.id);
             } finally {
                 setIsPosting(false);
+            }
+        }
+    };
+
+    const handleRewriteClick = async () => {
+        if (onRewrite && confirm('レビュー指摘に基づき記事を修正（リライト）しますか？\n※既存の本文は上書きされます。')) {
+            setIsRewriting(true);
+            try {
+                await onRewrite(article);
+            } finally {
+                setIsRewriting(false);
             }
         }
     };
@@ -294,16 +307,39 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
 
             {/* Footer Actions */}
             <div className="px-6 py-4 bg-white border-t border-slate-200 flex justify-end gap-3 shrink-0 rounded-b-xl">
+                {/* Rewrite Button - Only for non-posted, reviewing/rejected or low score */}
+                {article.status !== 'Posted' && (
+                    <button
+                        onClick={handleRewriteClick}
+                        disabled={isRewriting || isPosting}
+                        className={`
+                        px-4 py-2 rounded-lg text-slate-700 border border-slate-300 shadow-sm text-sm font-bold transition-colors flex items-center
+                        bg-white hover:bg-slate-50
+                        ${isRewriting ? 'opacity-80 cursor-wait' : ''}
+                    `}
+                    >
+                        {isRewriting ? (
+                            <>
+                                <i className="fas fa-sync fa-spin mr-2 text-indigo-500"></i> 修正中...
+                            </>
+                        ) : (
+                            <>
+                                <i className="fas fa-magic mr-2 text-indigo-500"></i> AI修正 (リライト)
+                            </>
+                        )}
+                    </button>
+                )}
+
                 <button
                     onClick={handlePostClick}
-                    disabled={article.status === 'Posted' || isPosting}
+                    disabled={article.status === 'Posted' || isPosting || isRewriting}
                     className={`
                     px-4 py-2 rounded-lg text-white shadow-sm text-sm font-medium transition-colors flex items-center
                     ${article.status === 'Posted'
                             ? 'bg-emerald-500 cursor-default'
                             : 'bg-slate-900 hover:bg-slate-800'
                         }
-                    ${isPosting ? 'opacity-80 cursor-wait' : ''}
+                    ${isPosting || isRewriting ? 'opacity-80 cursor-wait' : ''}
                 `}
                 >
                     {isPosting ? (

@@ -177,8 +177,27 @@ export const marketerAgent = async (analysis: AnalysisResult, pastArticles: Arti
   }
 };
 
-export const writerAgent = async (strategy: StrategyResult, promptTemplate?: string): Promise<string> => {
+export const writerAgent = async (strategy: StrategyResult, promptTemplate?: string, rewriteContext?: { feedback: string, currentContent: string }): Promise<string> => {
   let prompt = promptTemplate || DEFAULT_PROMPTS.writer;
+
+  if (rewriteContext) {
+    prompt += `
+    
+    【修正依頼】
+    あなたは以前この戦略に基づいて記事を書きましたが、以下のレビュワーからの指摘を受けて修正が必要です。
+    
+    ＜レビュワーコメント＞
+    ${rewriteContext.feedback}
+    
+    ＜現在の記事内容＞
+    ${rewriteContext.currentContent.substring(0, 2000)}...
+    
+    【指示】
+    指摘事項を反映し、より高品質な記事にリライトしてください。
+    出力形式は前回同様、[SPLIT]マーカーを含むMarkdown形式です。
+    `;
+  }
+
   prompt = prompt.replace('{{STRATEGY}}', JSON.stringify(strategy))
     .replace('{{APP_CONTEXT}}', APP_CONTEXT);
 
