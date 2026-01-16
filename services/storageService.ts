@@ -17,27 +17,27 @@ const base64ToBlob = (base64Data: string): Blob => {
 let supabaseInstance: any = null;
 
 export const initSupabaseClient = (url: string, key: string) => {
-    if (url && key) {
-        supabaseInstance = createClient(url, key);
-    }
+  if (url && key) {
+    supabaseInstance = createClient(url, key);
+  }
 };
 
 export const uploadImageToStorage = async (imageData: string, path: string): Promise<string> => {
   if (!imageData || imageData.includes('placehold.co')) return imageData;
-  
+
   if (!supabaseInstance) {
-      console.warn("Supabase client not initialized. Image upload skipped.");
-      return imageData;
+    console.warn("Supabase client not initialized. Image upload skipped.");
+    return "";
   }
 
   try {
     let blob: Blob;
     if (imageData.startsWith('http')) {
-        const response = await fetch(imageData);
-        if (!response.ok) throw new Error(`Failed to fetch external image`);
-        blob = await response.blob();
+      const response = await fetch(imageData);
+      if (!response.ok) throw new Error(`Failed to fetch external image`);
+      blob = await response.blob();
     } else {
-        blob = base64ToBlob(imageData);
+      blob = base64ToBlob(imageData);
     }
 
     const { data, error } = await supabaseInstance.storage
@@ -46,7 +46,7 @@ export const uploadImageToStorage = async (imageData: string, path: string): Pro
 
     if (error) {
       console.error(`Upload failed:`, error.message);
-      return imageData;
+      return "";
     }
 
     const { data: publicUrlData } = supabaseInstance.storage
@@ -57,12 +57,12 @@ export const uploadImageToStorage = async (imageData: string, path: string): Pro
 
   } catch (e) {
     console.error(`Storage Exception:`, e);
-    return imageData;
+    return "";
   }
 };
 
 export const uploadArticleImages = async (
-  articleId: string, 
+  articleId: string,
   design: { thumbnail_base64?: string; section1_base64?: string; section2_base64?: string; section3_base64?: string }
 ): Promise<string[]> => {
   // Parallel uploads
