@@ -373,7 +373,34 @@ export default function App() {
       // 3.5 Update History & Status
       const previousReview = article.review;
       const newHistory = article.review_history ? [...article.review_history] : [];
-      if (previousReview) newHistory.push(previousReview);
+
+      // If the previous review isn't already in history (e.g. from legacy data), add it
+      // Note: runPipeline adds ALL reviews to history. 
+      // check if previousReview is the last element of newHistory?
+      // To be safe and simple: just push previous if exists, AND push new one.
+      // Actually, if we just keep pushing, we might duplicate if logic is flawed. 
+      // But assuming linear flow: Review1 -> Rewrite -> Review2. 
+      // newHistory starts with [Review1]. previousReview is Review1. 
+      // We don't want to duplicate Review1.
+      // Wait, `runPipeline` saves `review_history: [Review1, Review2]`. `article.review` is Review2.
+      // So `article.review_history` ALREADY contains `article.review` (Review2).
+      // When we rewrite Review2 -> Review3.
+      // `previousReview` is Review2. `newHistory` is `[Review1, Review2]`.
+      // We don't need to push `previousReview` again if it's already there.
+      // We just need to push the NEW `review` (Review3).
+
+      // However, for articles created BEFORE the auto-rewrite feature, `review_history` might be undefined.
+      // In that case, `newHistory` is []. `previousReview` is Review1. We MUST push it.
+
+      const lastHistoryItem = newHistory.length > 0 ? newHistory[newHistory.length - 1] : null;
+      // Simple check: if last item score/comments/date matches? logic might be complex.
+      // Let's assume if history is empty, push previous. If history exists, assume previous is in it?
+      // Safeguard: always push previous if history is empty.
+      if (previousReview && newHistory.length === 0) {
+        newHistory.push(previousReview);
+      }
+      // Push NEW review
+      newHistory.push(review);
 
       // 4. Update
       const updatedArticle: Article = {

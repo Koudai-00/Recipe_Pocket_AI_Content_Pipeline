@@ -255,7 +255,7 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
                                         <div className="mt-6">
                                             <label className="text-xs font-bold text-slate-500 uppercase">記事構成案</label>
                                             <ul className="mt-2 space-y-2">
-                                                {article.marketing_strategy.structure.map((item, idx) => (
+                                                {(article.marketing_strategy.structure || []).map((item, idx) => (
                                                     <li key={idx} className="flex items-center text-sm text-slate-700 bg-slate-50 p-2 rounded">
                                                         <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-xs font-bold mr-3">{idx + 1}</span>
                                                         {item}
@@ -296,20 +296,25 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
                                     {article.review_history && article.review_history.length > 0 ? (
                                         <div className="space-y-6">
                                             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
-                                                <i className="fas fa-history mr-2 text-indigo-500"></i>レビュー履歴
+                                                <i className="fas fa-history mr-2 text-indigo-500"></i>レビュー履歴 (新しい順)
                                             </h3>
-                                            {article.review_history.map((rev, idx) => (
-                                                <div key={idx} className={`relative p-6 rounded-lg border shadow-sm ${rev.score >= 80 ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
-                                                    <div className="absolute top-4 right-4 text-xs font-bold text-slate-400">
-                                                        #{idx + 1}
+                                            {[...article.review_history].reverse().map((rev, idx) => {
+                                                const originalIndex = article.review_history!.length - 1 - idx;
+                                                const isLatest = idx === 0;
+
+                                                return (
+                                                    <div key={idx} className={`relative p-6 rounded-lg border shadow-sm ${rev.score >= 80 ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'} ${isLatest ? 'ring-2 ring-indigo-400 ring-offset-2' : 'opacity-80'}`}>
+                                                        <div className="absolute top-4 right-4 text-xs font-bold text-slate-400">
+                                                            #{originalIndex + 1} {isLatest && <span className="bg-indigo-600 text-white px-2 py-0.5 rounded ml-2">Latest</span>}
+                                                        </div>
+                                                        <h3 className="text-md font-bold text-slate-800 mb-2 flex items-center">
+                                                            <i className={`fas ${rev.score >= 80 ? 'fa-check-circle text-emerald-500' : 'fa-exclamation-triangle text-amber-500'} mr-2`}></i>
+                                                            スコア: {rev.score} / 100 ({rev.status})
+                                                        </h3>
+                                                        <p className="text-slate-700 italic">"{rev.comments}"</p>
                                                     </div>
-                                                    <h3 className="text-md font-bold text-slate-800 mb-2 flex items-center">
-                                                        <i className={`fas ${rev.score >= 80 ? 'fa-check-circle text-emerald-500' : 'fa-exclamation-triangle text-amber-500'} mr-2`}></i>
-                                                        スコア: {rev.score} / 100 ({rev.status})
-                                                    </h3>
-                                                    <p className="text-slate-700 italic">"{rev.comments}"</p>
-                                                </div>
-                                            ))}
+                                                )
+                                            })}
                                         </div>
                                     ) : article.review && (
                                         <div className={`p-6 rounded-lg border shadow-sm ${article.review.score >= 80 ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
