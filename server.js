@@ -32,6 +32,7 @@ const loadSecrets = async () => {
     { name: 'GEMINI_API_KEY', env: 'API_KEY' },
     { name: 'SUPABASE_URL', env: 'SUPABASE_URL' },
     { name: 'SUPABASE_SERVICE_ANON_KEY', env: 'SUPABASE_SERVICE_ANON_KEY' },
+    { name: 'SUPABASE_SERVICE_ROLE_KEY', env: 'SUPABASE_SERVICE_ROLE_KEY' },
     { name: 'SUPABASE_AUTHOR_ID', env: 'SUPABASE_AUTHOR_ID' },
     { name: 'GA4_CREDENTIALS_JSON', env: 'GA4_CREDENTIALS_JSON' },
     { name: 'GA4_PROPERTY_ID', env: 'GA4_PROPERTY_ID' }
@@ -561,6 +562,71 @@ app.post('/api/firestore/monthly_reports', async (req, res) => {
     if (!apiRes.ok) throw new Error(await apiRes.text());
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- API: CMS Post (Supabase) Proxy ---
+app.post('/api/cms/post', async (req, res) => {
+  try {
+    const { article } = req.body;
+
+    // Check if Service Role Key is available
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ANON_KEY;
+    const authorId = process.env.SUPABASE_AUTHOR_ID;
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase credentials (URL or Key) are missing in settings.');
+    }
+
+    // Import Supabase client dynamically
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Prepare content string
+    let contentToPost = '';
+    if (typeof article.content === 'string') {
+      contentToPost = article.content;
+    } else if (article.content) {
+      contentToPost = `${article.content.body_p1 || ''}\n\n${article.content.body_p2 || ''}\n\n${article.content.body_p3 || ''}`;
+    }
+
+    // Prioritize uploaded URL over Base64 string
+    const thumbnailUrl = (article.image_urls && article.image_urls.length > 0 && article.image_urls[0])
+      ? article.image_urls[0]
+      : undefined;
+
+    console.log(`Posting to Supabase CMS: ${article.title}`);
+    console.log(`URL: ${supabaseUrl}`);
+    console.log(`Using key type: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Service Role Key' : 'Anon Key'}`);
+
+    const { data, error } = await supabase
+      .from('articles')
+      .insert([
+        {
+          title: article.title,
+          content: contentToPost,
+          status: 'published',
+          thumbnail_url: thumbnailUrl,
+          author_id: authorId || undefined,
+          created_at: new Date().toISOString(),
+          view_count: 0,
+          is_featured: false
+        }
+      ])
+      .select();
+
+    if (error) {
+      console.error('Supabase Insert Error:', error);
+      throw new Error(`Supabase Error: ${error.message}`);
+    }
+
+    console.log('Successfully posted to Supabase CMS:', data?.[0]?.id);
+    res.json({ success: true, id: data?.[0]?.id || 'unknown-id' });
+
+  } catch (error) {
+    console.error('CMS Post Error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Health Check

@@ -9,7 +9,6 @@ import MonthlyReportView from './components/MonthlyReportView';
 import { AgentType, LogEntry, Article, SystemSettings, DesignPrompts } from './types';
 import { IMAGE_MODELS } from './constants';
 import { analystAgent, marketerAgent, writerAgent, designerAgent, controllerAgent } from './services/geminiService';
-import { postToSupabase } from './services/supabaseService';
 import { uploadArticleImages, initSupabaseClient } from './services/storageService';
 import { saveToFirestore, updateFirestoreStatus, fetchArticles } from './services/firestoreService';
 
@@ -270,15 +269,30 @@ export default function App() {
 
       // Auto Post Logic
       if (isApproved && systemSettings.supabase.autoPost) {
-        addLog(AgentType.PUBLISHER, "Supabaseへ自動投稿中...", 'info');
+        addLog(AgentType.PUBLISHER, "CMSへ自動投稿中...", 'info');
         try {
-          const supabaseArticle = { ...newArticle, content: rawContent };
-          await postToSupabase(supabaseArticle, systemSettings.supabase.url, systemSettings.supabase.anonKey, systemSettings.supabase.authorId);
+          const articleToPost = { ...newArticle, content: rawContent };
+
+          // Post to CMS via backend API (using Service Role Key)
+          const response = await fetch('/api/cms/post', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ article: articleToPost })
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'CMS投稿に失敗しました');
+          }
+
+          const result = await response.json();
+          console.log('CMS自動投稿成功:', result);
 
           await updateFirestoreStatus(newArticleId, 'Posted');
           newArticle.status = 'Posted';
-          addLog(AgentType.PUBLISHER, "投稿完了", 'success');
+          addLog(AgentType.PUBLISHER, `投稿完了 (ID: ${result.id})`, 'success');
         } catch (e: any) {
+          console.error('CMS自動投稿エラー:', e);
           addLog(AgentType.ERROR, `自動投稿失敗: ${e.message}`, 'error');
         }
       }
@@ -299,21 +313,34 @@ export default function App() {
     if (!targetArticle) return;
 
     try {
-      const fullContent = `${targetArticle.content.body_p1}\n\n${targetArticle.content.body_p2}\n\n${targetArticle.content.body_p3}`;
-      const supabaseArticle = { ...targetArticle, content: fullContent };
+      addLog(AgentType.PUBLISHER, 'CMSへ投稿中...', 'info');
 
-      await postToSupabase(
-        supabaseArticle,
-        systemSettings.supabase.url,
-        systemSettings.supabase.anonKey,
-        systemSettings.supabase.authorId
-      );
+      const fullContent = `${targetArticle.content.body_p1}\n\n${targetArticle.content.body_p2}\n\n${targetArticle.content.body_p3}`;
+      const articleToPost = { ...targetArticle, content: fullContent };
+
+      // Post to CMS via backend API (using Service Role Key)
+      const response = await fetch('/api/cms/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ article: articleToPost })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'CMS投稿に失敗しました');
+      }
+
+      const result = await response.json();
+      console.log('CMS投稿成功:', result);
+
+      // Update Firestore status
       await updateFirestoreStatus(articleId, 'Posted');
 
       setArticles(prev => prev.map(a => a.id === articleId ? { ...a, status: 'Posted' } : a));
       if (selectedArticle?.id === articleId) setSelectedArticle(prev => prev ? { ...prev, status: 'Posted' } : null);
-      addLog(AgentType.PUBLISHER, `投稿完了`, 'success');
+      addLog(AgentType.PUBLISHER, `投稿完了 (ID: ${result.id})`, 'success');
     } catch (e: any) {
+      console.error('CMS投稿エラー:', e);
       addLog(AgentType.ERROR, `投稿エラー: ${e.message}`, 'error');
     }
   };
