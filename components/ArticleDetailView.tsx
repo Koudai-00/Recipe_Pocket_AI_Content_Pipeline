@@ -67,6 +67,11 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
                             <span className={`px-2 py-0.5 rounded text-xs font-bold ${article.status === 'Approved' || article.status === 'Posted' ? 'bg-emerald-100 text-emerald-700' : 'bg-yellow-100 text-yellow-700'}`}>
                                 {article.status}
                             </span>
+                            {article.rewrite_attempted && (
+                                <span className="px-2 py-0.5 rounded text-xs font-bold bg-purple-100 text-purple-700">
+                                    <i className="fas fa-sync mr-1"></i>Rewritten
+                                </span>
+                            )}
                             {article.review && (
                                 <span className="font-mono font-bold text-slate-600">
                                     Score: <span className={article.review.score >= 80 ? 'text-emerald-600' : 'text-amber-600'}>{article.review.score}</span>
@@ -285,15 +290,37 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
                                 </div>
                             )}
 
-                            {activeReport === 'review' && article.review && (
+                            {activeReport === 'review' && (
                                 <div className="animate-fade-in space-y-6">
-                                    <div className={`p-6 rounded-lg border shadow-sm ${article.review.score >= 80 ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
-                                        <h3 className="text-lg font-bold text-slate-800 mb-2 flex items-center">
-                                            <i className={`fas ${article.review.score >= 80 ? 'fa-check-circle text-emerald-500' : 'fa-exclamation-triangle text-amber-500'} mr-2`}></i>
-                                            品質スコア: {article.review.score} / 100
-                                        </h3>
-                                        <p className="text-slate-700 italic">"{article.review.comments}"</p>
-                                    </div>
+                                    {/* History View */}
+                                    {article.review_history && article.review_history.length > 0 ? (
+                                        <div className="space-y-6">
+                                            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                                                <i className="fas fa-history mr-2 text-indigo-500"></i>レビュー履歴
+                                            </h3>
+                                            {article.review_history.map((rev, idx) => (
+                                                <div key={idx} className={`relative p-6 rounded-lg border shadow-sm ${rev.score >= 80 ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+                                                    <div className="absolute top-4 right-4 text-xs font-bold text-slate-400">
+                                                        #{idx + 1}
+                                                    </div>
+                                                    <h3 className="text-md font-bold text-slate-800 mb-2 flex items-center">
+                                                        <i className={`fas ${rev.score >= 80 ? 'fa-check-circle text-emerald-500' : 'fa-exclamation-triangle text-amber-500'} mr-2`}></i>
+                                                        スコア: {rev.score} / 100 ({rev.status})
+                                                    </h3>
+                                                    <p className="text-slate-700 italic">"{rev.comments}"</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : article.review && (
+                                        <div className={`p-6 rounded-lg border shadow-sm ${article.review.score >= 80 ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+                                            <h3 className="text-lg font-bold text-slate-800 mb-2 flex items-center">
+                                                <i className={`fas ${article.review.score >= 80 ? 'fa-check-circle text-emerald-500' : 'fa-exclamation-triangle text-amber-500'} mr-2`}></i>
+                                                品質スコア: {article.review.score} / 100
+                                            </h3>
+                                            <p className="text-slate-700 italic">"{article.review.comments}"</p>
+                                        </div>
+                                    )}
+
                                     <div>
                                         <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Raw JSON Output</h4>
                                         {renderJson(article.review)}

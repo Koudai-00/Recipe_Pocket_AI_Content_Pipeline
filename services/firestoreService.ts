@@ -38,6 +38,8 @@ export const saveToFirestore = async (article: Article): Promise<void> => {
         image_urls: article.image_urls,
         review_score: article.review?.score || 0,
         review_comment: article.review?.comments || "",
+        review_history: article.review_history || [],
+        rewrite_attempted: article.rewrite_attempted || false,
         design_prompts: {
             thumbnail: article.design?.thumbnail_prompt,
             section1: article.design?.section1_prompt,
@@ -154,6 +156,9 @@ export const fetchArticles = async (): Promise<Article[]> => {
                 score: parsed.review_score || 0,
                 comments: parsed.review_comment || ""
             },
+
+            review_history: parsed.review_history || [],
+            rewrite_attempted: parsed.rewrite_attempted || false,
 
             // Fallback for Title
             title: parsed.content?.title || parsed.marketing_strategy?.title || "Untitled"

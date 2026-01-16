@@ -73,6 +73,8 @@ export interface Article {
   image_urls: string[]; // [thumb, img1, img2, img3]
 
   review?: ReviewResult;
+  review_history?: ReviewResult[];
+  rewrite_attempted?: boolean;
 
   // Internal/Transient (for UI display before upload)
   design?: DesignPrompts;

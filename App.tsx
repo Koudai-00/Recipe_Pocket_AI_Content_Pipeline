@@ -169,16 +169,52 @@ export default function App() {
 
       addLog(AgentType.WRITER, `執筆完了。(Total: ${rawContent.length}文字)`, 'success');
 
-      // 4. Controller (Review FIRST)
-      setStatus(AgentType.CONTROLLER);
-      addLog(AgentType.CONTROLLER, "記事内容をレビュー中...", 'info');
-      const review = await controllerAgent(strategy, rawContent, systemSettings.agentPrompts?.controller);
-      const isApproved = review.status === 'APPROVED';
+
+
+      // 3. Controller Agent (Review - Initial)
+      addLog(AgentType.CONTROLLER, "記事の品質レビュー(初回)を実行中...", 'info');
+      let review = await controllerAgent(strategy, rawContent, systemSettings.agentPrompts?.controller);
+
+      let reviewHistory: any[] = [];
+      let rewriteAttempted = false;
+      let finalContentStr = rawContent;
+      let finalReview = review;
+
+      // --- AUTO REWRITE LOGIC ---
+      if (review.status !== 'APPROVED') {
+        addLog(AgentType.WRITER, `品質スコア(${review.score})が基準未満のため、自動リライトを実行します...`, 'warning');
+
+        // Save first review
+        reviewHistory.push(review);
+        rewriteAttempted = true;
+
+        // Rewrite
+        const rewriteContext = {
+          feedback: review.comments,
+          currentContent: finalContentStr
+        };
+
+        addLog(AgentType.WRITER, "指摘事項に基づき記事を修正中...", 'info');
+        finalContentStr = await writerAgent(strategy, systemSettings.agentPrompts?.writer, rewriteContext);
+
+        addLog(AgentType.WRITER, `リライト完了。(Total: ${finalContentStr.length}文字)`, 'success');
+
+        // Re-Review
+        addLog(AgentType.CONTROLLER, "再レビューを実行中...", 'info');
+        finalReview = await controllerAgent(strategy, finalContentStr, systemSettings.agentPrompts?.controller);
+
+        reviewHistory.push(finalReview);
+      } else {
+        reviewHistory.push(review);
+      }
+
+
+      const isApproved = finalReview.status === 'APPROVED';
       const finalStatus: Article['status'] = isApproved ? 'Approved' : 'Reviewing';
 
       addLog(AgentType.CONTROLLER, `レビュー完了: ${isApproved ? '承認 (画像生成へ進みます)' : '修正が必要 (画像生成をスキップします)'}`, isApproved ? 'success' : 'warning');
 
-      // 5. Designer (Conditional: Only if Approved)
+      // 4. Designer Agent (Image Prompts & Generation)
       let design: DesignPrompts = { thumbnail_prompt: "", section1_prompt: "", section2_prompt: "", section3_prompt: "" };
       let imageUrls: string[] = [];
 
@@ -186,18 +222,30 @@ export default function App() {
         setStatus(AgentType.DESIGNER);
         addLog(AgentType.DESIGNER, `画像生成中... (Model: ${imageModel})`, 'info');
 
-        design = await designerAgent(strategy.title, rawContent, imageModel, { seedream: arkApiKey }, systemSettings.agentPrompts?.designer);
-        addLog(AgentType.DESIGNER, "画像を生成し、Storageへアップロード中...", 'info');
+        try {
+          // Pass FINAL content to designer
+          design = await designerAgent(strategy.title, finalContentStr, imageModel, { seedream: arkApiKey }, systemSettings.agentPrompts?.designer);
+          addLog(AgentType.DESIGNER, "画像を生成し、Storageへアップロード中...", 'info');
 
-        imageUrls = await uploadArticleImages(newArticleId, design);
-        addLog(AgentType.DESIGNER, "画像処理完了", 'success');
+          imageUrls = await uploadArticleImages(newArticleId, design);
+          addLog(AgentType.DESIGNER, "画像処理完了", 'success');
+        } catch (e: any) {
+          console.error("Image Gen Error", e);
+          addLog(AgentType.DESIGNER, `画像生成エラー: ${e.message} (スキップします)`, 'error');
+        }
       } else {
         if (!isApproved) {
-          addLog(AgentType.DESIGNER, "レビュー未承認のため画像生成をスキップ", 'warning');
+          addLog(AgentType.DESIGNER, `最終ステータスが ${finalStatus} のため、画像生成はスキップします。`, 'warning');
         } else {
           addLog(AgentType.DESIGNER, "画像生成設定がOFFのためスキップ", 'warning');
         }
       }
+
+      // Parse final content
+      const fParts = finalContentStr.split('[SPLIT]');
+      const fBody1 = fParts[0] || "";
+      const fBody2 = fParts[1] || "";
+      const fBody3 = fParts[2] || "";
 
       const newArticle: Article = {
         id: newArticleId,
@@ -207,9 +255,11 @@ export default function App() {
         topic: analysis.topic,
         analysis_report: analysis,
         marketing_strategy: strategy,
-        content: { title: strategy.title, body_p1, body_p2, body_p3 },
+        content: { title: strategy.title, body_p1: fBody1, body_p2: fBody2, body_p3: fBody3 },
         image_urls: imageUrls,
-        review,
+        review: finalReview,
+        review_history: reviewHistory.length > 0 ? reviewHistory : undefined,
+        rewrite_attempted: rewriteAttempted,
         design,
         isImageGenSkipped: skipImages
       };
