@@ -209,7 +209,7 @@ export default function App() {
       }
 
 
-      const isApproved = finalReview.status === 'APPROVED';
+      const isApproved = finalReview.status?.toUpperCase() === 'APPROVED';
       const finalStatus: Article['status'] = isApproved ? 'Approved' : 'Reviewing';
 
       addLog(AgentType.CONTROLLER, `レビュー完了: ${isApproved ? '承認 (画像生成へ進みます)' : '修正が必要 (画像生成をスキップします)'}`, isApproved ? 'success' : 'warning');
@@ -348,7 +348,7 @@ export default function App() {
       setStatus(AgentType.CONTROLLER);
       addLog(AgentType.CONTROLLER, "修正記事を再レビュー中...", 'info');
       const review = await controllerAgent(article.marketing_strategy, rawContent, systemSettings.agentPrompts?.controller);
-      const isApproved = review.status === 'APPROVED';
+      const isApproved = review.status?.toUpperCase() === 'APPROVED';
 
       addLog(AgentType.CONTROLLER, `再レビュー結果: ${isApproved ? '承認' : '再修正推奨'} (Score: ${review.score})`, isApproved ? 'success' : 'warning');
 
@@ -370,12 +370,19 @@ export default function App() {
         }
       }
 
+      // 3.5 Update History & Status
+      const previousReview = article.review;
+      const newHistory = article.review_history ? [...article.review_history] : [];
+      if (previousReview) newHistory.push(previousReview);
+
       // 4. Update
       const updatedArticle: Article = {
         ...article,
         status: isApproved ? 'Approved' : 'Reviewing',
         content: { title: article.content.title, body_p1, body_p2, body_p3 },
         review,
+        review_history: newHistory,
+        rewrite_attempted: true,
         design,
         image_urls: imageUrls,
         date: new Date().toISOString() // Update timestamp? Maybe update 'updatedAt' if exists, but for list sort, date update is fine.

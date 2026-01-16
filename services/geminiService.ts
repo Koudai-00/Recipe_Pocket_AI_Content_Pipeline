@@ -138,6 +138,12 @@ export const DEFAULT_PROMPTS = {
   controller: `あなたは編集長です。
     【戦略】{{STRATEGY}}
     【記事】{{CONTENT_SNIPPET}}
+    
+    【採点基準】
+    - 0-100点で採点してください。
+    - 80点以上: 合格 (APPROVED)
+    - 80点未満: 要修正 (REVIEW_REQUIRED)
+
     出力JSON: { "status": "APPROVED"|"REVIEW_REQUIRED", "score": number, "comments": "..." }`
 };
 
