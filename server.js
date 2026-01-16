@@ -574,8 +574,12 @@ app.get('*', (req, res) => {
 });
 
 // Start Server
+// Start Server
+console.log("Starting server initialization...");
+
 loadSecrets().then(() => {
-  app.listen(PORT, () => {
+  console.log("Secrets loaded (or skipped). Starting Express app...");
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
     console.log("--- Environment Variables Check ---");
     console.log(`API_KEY: ${process.env.API_KEY ? 'Set (Length: ' + process.env.API_KEY.length + ')' : 'MISSING'}`);
@@ -584,4 +588,7 @@ loadSecrets().then(() => {
     console.log(`SUPABASE_URL: ${process.env.SUPABASE_URL ? 'Set' : 'MISSING'}`);
     console.log("-----------------------------------");
   });
+}).catch(err => {
+  console.error("FATAL: Failed to initialize server:", err);
+  process.exit(1);
 });
