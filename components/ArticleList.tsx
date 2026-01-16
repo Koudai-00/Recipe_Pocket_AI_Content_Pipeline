@@ -50,6 +50,7 @@ const ArticleList: React.FC<ArticleListProps> = ({ articles, onView }) => {
                       ${article.status === 'Reviewing' ? 'bg-yellow-100 text-yellow-800' : ''}
                       ${article.status === 'Drafting' ? 'bg-blue-100 text-blue-800' : ''}
                       ${article.status === 'Rejected' ? 'bg-red-100 text-red-800' : ''}
+                      ${article.status === 'Posted' ? 'bg-indigo-100 text-indigo-800' : ''}
                     `}>
                       {statusMap[article.status] || article.status}
                     </span>
