@@ -238,6 +238,41 @@ app.get('/api/firestore/articles', async (req, res) => {
     console.error("Firestore List Error:", error);
     res.status(500).json({ error: error.message });
   }
+  if (!apiRes.ok) throw new Error(await apiRes.text());
+  const data = await apiRes.json();
+  res.json(data);
+} catch (error) {
+  console.error("Firestore List Error:", error);
+  res.status(500).json({ error: error.message });
+}
+});
+
+// --- API: Firestore Bulk Delete Proxy ---
+app.delete('/api/firestore/articles', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids)) throw new Error("Invalid IDs");
+
+    const creds = JSON.parse(process.env.GA4_CREDENTIALS_JSON || '{}');
+    const projectId = creds.project_id;
+    const accessToken = await getGoogleAccessToken(['https://www.googleapis.com/auth/datastore']);
+
+    // Parallel deletes (Firestore limit is usually high enough for UI bulk actions)
+    // For large bulk, batchCommit would be better, but for UI usage (e.g. 10-20 items), Promise.all is fine.
+    await Promise.all(ids.map(async (id) => {
+      const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/articles/${id}`;
+      const apiRes = await fetch(url, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+      if (!apiRes.ok) console.warn(`Failed to delete ${id}:`, await apiRes.text());
+    }));
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Firestore Delete Error:", error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // --- API: Firestore Status Update Proxy ---

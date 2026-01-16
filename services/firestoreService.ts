@@ -260,3 +260,20 @@ export const saveMonthlyReportDoc = async (report: any): Promise<void> => {
         throw e;
     }
 };
+
+export const deleteArticles = async (ids: string[]): Promise<void> => {
+    try {
+        const response = await fetch('/api/firestore/articles', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids })
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error || 'Failed to delete articles');
+        }
+    } catch (e) {
+        console.error("Failed to delete articles:", e);
+        throw e;
+    }
+};
