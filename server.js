@@ -238,13 +238,7 @@ app.get('/api/firestore/articles', async (req, res) => {
     console.error("Firestore List Error:", error);
     res.status(500).json({ error: error.message });
   }
-  if (!apiRes.ok) throw new Error(await apiRes.text());
-  const data = await apiRes.json();
-  res.json(data);
-} catch (error) {
-  console.error("Firestore List Error:", error);
-  res.status(500).json({ error: error.message });
-}
+
 });
 
 // --- API: Firestore Bulk Delete Proxy ---
@@ -568,27 +562,32 @@ app.post('/api/firestore/monthly_reports', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Health Check
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
 // Fallback for React Router
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 // Start Server
-// Start Server
-console.log("Starting server initialization...");
+console.log(`Starting server on port ${PORT}...`);
 
+// 1. Start listening immediately to pass Cloud Run health checks
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+// 2. Load secrets in background
 loadSecrets().then(() => {
-  console.log("Secrets loaded (or skipped). Starting Express app...");
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log("--- Environment Variables Check ---");
-    console.log(`API_KEY: ${process.env.API_KEY ? 'Set (Length: ' + process.env.API_KEY.length + ')' : 'MISSING'}`);
-    console.log(`GA4_PROPERTY_ID: ${process.env.GA4_PROPERTY_ID ? 'Set' : 'MISSING'}`);
-    console.log(`GA4_CREDENTIALS_JSON: ${process.env.GA4_CREDENTIALS_JSON ? 'Set' : 'MISSING'}`);
-    console.log(`SUPABASE_URL: ${process.env.SUPABASE_URL ? 'Set' : 'MISSING'}`);
-    console.log("-----------------------------------");
-  });
+  console.log("Secrets loaded successfully.");
+  console.log("--- Environment Variables Check ---");
+  console.log(`API_KEY: ${process.env.API_KEY ? 'Set (Length: ' + process.env.API_KEY.length + ')' : 'MISSING'}`);
+  console.log(`GA4_PROPERTY_ID: ${process.env.GA4_PROPERTY_ID ? 'Set' : 'MISSING'}`);
+  console.log("-----------------------------------");
 }).catch(err => {
-  console.error("FATAL: Failed to initialize server:", err);
-  process.exit(1);
+  console.error("WARNING: Failed to load secrets from Secret Manager:", err);
+  // Do not exit, as the app might still work with .env or partial secrets
 });
