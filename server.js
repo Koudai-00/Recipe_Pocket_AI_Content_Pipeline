@@ -572,9 +572,11 @@ const generateSlug = (title) => {
   let slug = title
     .toLowerCase()
     .trim()
-    .replace(/[^\w\s\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF-]/g, '')
+    .replace(/[^a-z0-9\s-]/g, '')
     .replace(/\s+/g, '-')
-    .substring(0, 50);
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .substring(0, 30);
 
   if (!slug) {
     slug = 'article';
