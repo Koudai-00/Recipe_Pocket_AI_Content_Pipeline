@@ -26,6 +26,8 @@ export default function App() {
   const [imageModel, setImageModel] = useState<string>(IMAGE_MODELS[0].value);
   const [arkApiKey, setArkApiKey] = useState<string>('');
   const [skipImages, setSkipImages] = useState<boolean>(false);
+  const [articleCount, setArticleCount] = useState<number>(1);
+  const [articleRequests, setArticleRequests] = useState<string[]>(['']);
 
   // Connection Status State
   const [connStatus, setConnStatus] = useState({
@@ -127,6 +129,17 @@ export default function App() {
     loadArticles();
   }, []);
 
+  // Update article request fields when count changes
+  useEffect(() => {
+    setArticleRequests(prev => {
+      const newRequests = [...prev];
+      while (newRequests.length < articleCount) {
+        newRequests.push('');
+      }
+      return newRequests.slice(0, articleCount);
+    });
+  }, [articleCount]);
+
   const addLog = (agent: AgentType, message: string, level: LogEntry['level'] = 'info') => {
     setLogs(prev => [...prev, {
       id: generateId(),
@@ -140,173 +153,183 @@ export default function App() {
   const runPipeline = useCallback(async () => {
     if (status !== AgentType.IDLE && status !== AgentType.COMPLETED && status !== AgentType.ERROR) return;
 
-    const newArticleId = generateId();
-    setStatus(AgentType.ANALYST);
     setLogs([]);
-    addLog(AgentType.ANALYST, "パイプラインを開始します。バックエンドAPI経由で分析を実行中...", 'info');
+    addLog(AgentType.ANALYST, `パイプラインを開始します。${articleCount}件の記事を生成します...`, 'info');
+
+    const generatedArticles: Article[] = [];
 
     try {
-      // 1. Analyst
-      const analysis = await analystAgent(articles, systemSettings.agentPrompts?.analyst);
-      addLog(AgentType.ANALYST, `トピック特定完了: ${analysis.topic}`, 'success');
+      for (let i = 0; i < articleCount; i++) {
+        const articleRequest = articleRequests[i]?.trim();
+        const newArticleId = generateId();
 
-      // 2. Marketer
-      setStatus(AgentType.MARKETER);
-      addLog(AgentType.MARKETER, "コンテンツ戦略を策定中...", 'info');
-      const strategy = await marketerAgent(analysis, articles, systemSettings.agentPrompts?.marketer);
-      addLog(AgentType.MARKETER, `タイトル案: ${strategy.title}`, 'success');
+        if (articleCount > 1) {
+          addLog(AgentType.ANALYST, `\n━━━ 記事 ${i + 1}/${articleCount} の生成開始 ━━━`, 'info');
+          if (articleRequest) {
+            addLog(AgentType.ANALYST, `要望: ${articleRequest}`, 'info');
+          }
+        }
 
-      // 3. Writer
-      setStatus(AgentType.WRITER);
-      addLog(AgentType.WRITER, "記事執筆中...", 'info');
-      const rawContent = await writerAgent(strategy, systemSettings.agentPrompts?.writer);
+        // 1. Analyst
+        setStatus(AgentType.ANALYST);
+        addLog(AgentType.ANALYST, "バックエンドAPI経由で分析を実行中...", 'info');
+        const analysis = await analystAgent(articles, systemSettings.agentPrompts?.analyst, articleRequest);
+        addLog(AgentType.ANALYST, `トピック特定完了: ${analysis.topic}`, 'success');
 
-      const parts = rawContent.split('[SPLIT]');
-      const body_p1 = parts[0] || "";
-      const body_p2 = parts[1] || "";
-      const body_p3 = parts[2] || "";
+        // 2. Marketer
+        setStatus(AgentType.MARKETER);
+        addLog(AgentType.MARKETER, "コンテンツ戦略を策定中...", 'info');
+        const strategy = await marketerAgent(analysis, articles, systemSettings.agentPrompts?.marketer, articleRequest);
+        addLog(AgentType.MARKETER, `タイトル案: ${strategy.title}`, 'success');
 
-      addLog(AgentType.WRITER, `執筆完了。(Total: ${rawContent.length}文字)`, 'success');
+        // 3. Writer
+        setStatus(AgentType.WRITER);
+        addLog(AgentType.WRITER, "記事執筆中...", 'info');
+        const rawContent = await writerAgent(strategy, systemSettings.agentPrompts?.writer);
 
+        const parts = rawContent.split('[SPLIT]');
+        const body_p1 = parts[0] || "";
+        const body_p2 = parts[1] || "";
+        const body_p3 = parts[2] || "";
 
+        addLog(AgentType.WRITER, `執筆完了。(Total: ${rawContent.length}文字)`, 'success');
 
-      // 3. Controller Agent (Review - Initial)
-      addLog(AgentType.CONTROLLER, "記事の品質レビュー(初回)を実行中...", 'info');
-      let review = await controllerAgent(strategy, rawContent, systemSettings.agentPrompts?.controller);
+        // 4. Controller Agent (Review - Initial)
+        addLog(AgentType.CONTROLLER, "記事の品質レビュー(初回)を実行中...", 'info');
+        let review = await controllerAgent(strategy, rawContent, systemSettings.agentPrompts?.controller);
 
-      let reviewHistory: any[] = [];
-      let rewriteAttempted = false;
-      let finalContentStr = rawContent;
-      let finalReview = review;
+        let reviewHistory: any[] = [];
+        let rewriteAttempted = false;
+        let finalContentStr = rawContent;
+        let finalReview = review;
 
-      // --- AUTO REWRITE LOGIC ---
-      if (review.status !== 'APPROVED') {
-        addLog(AgentType.WRITER, `品質スコア(${review.score})が基準未満のため、自動リライトを実行します...`, 'warning');
+        // --- AUTO REWRITE LOGIC ---
+        if (review.status !== 'APPROVED') {
+          addLog(AgentType.WRITER, `品質スコア(${review.score})が基準未満のため、自動リライトを実行します...`, 'warning');
 
-        // Save first review
-        reviewHistory.push(review);
-        rewriteAttempted = true;
+          reviewHistory.push(review);
+          rewriteAttempted = true;
 
-        // Rewrite
-        const rewriteContext = {
-          feedback: review.comments,
-          currentContent: finalContentStr
+          const rewriteContext = {
+            feedback: review.comments,
+            currentContent: finalContentStr
+          };
+
+          addLog(AgentType.WRITER, "指摘事項に基づき記事を修正中...", 'info');
+          finalContentStr = await writerAgent(strategy, systemSettings.agentPrompts?.writer, rewriteContext);
+
+          addLog(AgentType.WRITER, `リライト完了。(Total: ${finalContentStr.length}文字)`, 'success');
+
+          addLog(AgentType.CONTROLLER, "再レビューを実行中...", 'info');
+          finalReview = await controllerAgent(strategy, finalContentStr, systemSettings.agentPrompts?.controller);
+
+          reviewHistory.push(finalReview);
+        } else {
+          reviewHistory.push(review);
+        }
+
+        const isApproved = finalReview.status?.toUpperCase() === 'APPROVED';
+        const finalStatus: Article['status'] = isApproved ? 'Approved' : 'Reviewing';
+
+        addLog(AgentType.CONTROLLER, `レビュー完了: ${isApproved ? '承認 (画像生成へ進みます)' : '修正が必要 (画像生成をスキップします)'}`, isApproved ? 'success' : 'warning');
+
+        // 5. Designer Agent (Image Prompts & Generation)
+        let design: DesignPrompts = { thumbnail_prompt: "", section1_prompt: "", section2_prompt: "", section3_prompt: "" };
+        let imageUrls: string[] = [];
+
+        if (isApproved && !skipImages) {
+          setStatus(AgentType.DESIGNER);
+          addLog(AgentType.DESIGNER, `画像生成中... (Model: ${imageModel})`, 'info');
+
+          try {
+            design = await designerAgent(strategy.title, finalContentStr, imageModel, { seedream: arkApiKey }, systemSettings.agentPrompts?.designer);
+            addLog(AgentType.DESIGNER, "画像を生成し、Storageへアップロード中...", 'info');
+
+            imageUrls = await uploadArticleImages(newArticleId, design);
+            addLog(AgentType.DESIGNER, "画像処理完了", 'success');
+          } catch (e: any) {
+            console.error("Image Gen Error", e);
+            addLog(AgentType.DESIGNER, `画像生成エラー: ${e.message} (スキップします)`, 'error');
+          }
+        } else {
+          if (!isApproved) {
+            addLog(AgentType.DESIGNER, `最終ステータスが ${finalStatus} のため、画像生成はスキップします。`, 'warning');
+          } else {
+            addLog(AgentType.DESIGNER, "画像生成設定がOFFのためスキップ", 'warning');
+          }
+        }
+
+        const fParts = finalContentStr.split('[SPLIT]');
+        const fBody1 = fParts[0] || "";
+        const fBody2 = fParts[1] || "";
+        const fBody3 = fParts[2] || "";
+
+        const newArticle: Article = {
+          id: newArticleId,
+          date: new Date().toISOString(),
+          title: strategy.title,
+          status: finalStatus,
+          topic: analysis.topic,
+          analysis_report: analysis,
+          marketing_strategy: strategy,
+          content: { title: strategy.title, body_p1: fBody1, body_p2: fBody2, body_p3: fBody3 },
+          image_urls: imageUrls,
+          review: finalReview,
+          review_history: reviewHistory.length > 0 ? reviewHistory : undefined,
+          rewrite_attempted: rewriteAttempted,
+          design,
+          isImageGenSkipped: skipImages
         };
 
-        addLog(AgentType.WRITER, "指摘事項に基づき記事を修正中...", 'info');
-        finalContentStr = await writerAgent(strategy, systemSettings.agentPrompts?.writer, rewriteContext);
+        await saveToFirestore(newArticle);
+        addLog(AgentType.CONTROLLER, "Firestoreへ保存完了", 'info');
 
-        addLog(AgentType.WRITER, `リライト完了。(Total: ${finalContentStr.length}文字)`, 'success');
+        // Auto Post Logic
+        if (isApproved && systemSettings.supabase.autoPost) {
+          addLog(AgentType.PUBLISHER, "CMSへ自動投稿中...", 'info');
+          try {
+            const articleToPost = { ...newArticle, content: rawContent };
 
-        // Re-Review
-        addLog(AgentType.CONTROLLER, "再レビューを実行中...", 'info');
-        finalReview = await controllerAgent(strategy, finalContentStr, systemSettings.agentPrompts?.controller);
+            const response = await fetch('/api/cms/post', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ article: articleToPost })
+            });
 
-        reviewHistory.push(finalReview);
-      } else {
-        reviewHistory.push(review);
-      }
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.error || 'CMS投稿に失敗しました');
+            }
 
+            const result = await response.json();
+            console.log('CMS自動投稿成功:', result);
 
-      const isApproved = finalReview.status?.toUpperCase() === 'APPROVED';
-      const finalStatus: Article['status'] = isApproved ? 'Approved' : 'Reviewing';
-
-      addLog(AgentType.CONTROLLER, `レビュー完了: ${isApproved ? '承認 (画像生成へ進みます)' : '修正が必要 (画像生成をスキップします)'}`, isApproved ? 'success' : 'warning');
-
-      // 4. Designer Agent (Image Prompts & Generation)
-      let design: DesignPrompts = { thumbnail_prompt: "", section1_prompt: "", section2_prompt: "", section3_prompt: "" };
-      let imageUrls: string[] = [];
-
-      if (isApproved && !skipImages) {
-        setStatus(AgentType.DESIGNER);
-        addLog(AgentType.DESIGNER, `画像生成中... (Model: ${imageModel})`, 'info');
-
-        try {
-          // Pass FINAL content to designer
-          design = await designerAgent(strategy.title, finalContentStr, imageModel, { seedream: arkApiKey }, systemSettings.agentPrompts?.designer);
-          addLog(AgentType.DESIGNER, "画像を生成し、Storageへアップロード中...", 'info');
-
-          imageUrls = await uploadArticleImages(newArticleId, design);
-          addLog(AgentType.DESIGNER, "画像処理完了", 'success');
-        } catch (e: any) {
-          console.error("Image Gen Error", e);
-          addLog(AgentType.DESIGNER, `画像生成エラー: ${e.message} (スキップします)`, 'error');
-        }
-      } else {
-        if (!isApproved) {
-          addLog(AgentType.DESIGNER, `最終ステータスが ${finalStatus} のため、画像生成はスキップします。`, 'warning');
-        } else {
-          addLog(AgentType.DESIGNER, "画像生成設定がOFFのためスキップ", 'warning');
-        }
-      }
-
-      // Parse final content
-      const fParts = finalContentStr.split('[SPLIT]');
-      const fBody1 = fParts[0] || "";
-      const fBody2 = fParts[1] || "";
-      const fBody3 = fParts[2] || "";
-
-      const newArticle: Article = {
-        id: newArticleId,
-        date: new Date().toISOString(),
-        title: strategy.title,
-        status: finalStatus,
-        topic: analysis.topic,
-        analysis_report: analysis,
-        marketing_strategy: strategy,
-        content: { title: strategy.title, body_p1: fBody1, body_p2: fBody2, body_p3: fBody3 },
-        image_urls: imageUrls,
-        review: finalReview,
-        review_history: reviewHistory.length > 0 ? reviewHistory : undefined,
-        rewrite_attempted: rewriteAttempted,
-        design,
-        isImageGenSkipped: skipImages
-      };
-
-      // Save to Firestore via Backend
-      await saveToFirestore(newArticle);
-      addLog(AgentType.CONTROLLER, "Firestoreへ保存完了 (Backend Proxy)", 'info');
-
-      // Auto Post Logic
-      if (isApproved && systemSettings.supabase.autoPost) {
-        addLog(AgentType.PUBLISHER, "CMSへ自動投稿中...", 'info');
-        try {
-          const articleToPost = { ...newArticle, content: rawContent };
-
-          // Post to CMS via backend API (using Service Role Key)
-          const response = await fetch('/api/cms/post', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ article: articleToPost })
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'CMS投稿に失敗しました');
+            await updateFirestoreStatus(newArticleId, 'Posted');
+            newArticle.status = 'Posted';
+            addLog(AgentType.PUBLISHER, `投稿完了 (ID: ${result.id})`, 'success');
+          } catch (e: any) {
+            console.error('CMS自動投稿エラー:', e);
+            addLog(AgentType.ERROR, `自動投稿失敗: ${e.message}`, 'error');
           }
+        }
 
-          const result = await response.json();
-          console.log('CMS自動投稿成功:', result);
+        generatedArticles.push(newArticle);
 
-          await updateFirestoreStatus(newArticleId, 'Posted');
-          newArticle.status = 'Posted';
-          addLog(AgentType.PUBLISHER, `投稿完了 (ID: ${result.id})`, 'success');
-        } catch (e: any) {
-          console.error('CMS自動投稿エラー:', e);
-          addLog(AgentType.ERROR, `自動投稿失敗: ${e.message}`, 'error');
+        if (articleCount > 1) {
+          addLog(AgentType.PUBLISHER, `記事 ${i + 1}/${articleCount} 完了`, 'success');
         }
       }
 
-      setArticles(prev => [newArticle, ...prev]);
+      setArticles(prev => [...generatedArticles, ...prev]);
       setStatus(AgentType.COMPLETED);
-      addLog(AgentType.PUBLISHER, "完了", 'success');
+      addLog(AgentType.PUBLISHER, `全${articleCount}件の記事生成が完了しました`, 'success');
 
     } catch (error: any) {
       console.error(error);
       setStatus(AgentType.ERROR);
       addLog(AgentType.ERROR, `エラー: ${error.message}`, 'error');
     }
-  }, [status, imageModel, articles, arkApiKey, systemSettings, skipImages]);
+  }, [status, imageModel, articles, arkApiKey, systemSettings, skipImages, articleCount, articleRequests]);
 
   const handlePostArticle = async (articleId: string) => {
     const targetArticle = articles.find(a => a.id === articleId);
@@ -520,22 +543,81 @@ export default function App() {
           {currentView === 'dashboard' && (
             <>
               {/* Header & Controls */}
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-900">記事生成パイプライン</h2>
-                  <p className="text-slate-500 mt-1">AIエージェントが記事を自動作成します。</p>
-                </div>
-                <div className="flex items-center gap-3 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm">
-                  <div className="flex items-center h-full px-3 border-r border-slate-100">
-                    <input type="checkbox" id="skip-images" checked={skipImages} onChange={(e) => setSkipImages(e.target.checked)} disabled={status !== AgentType.IDLE && status !== AgentType.COMPLETED && status !== AgentType.ERROR} className="w-4 h-4 text-blue-600 rounded" />
-                    <label htmlFor="skip-images" className="ml-2 text-xs font-bold text-slate-500 cursor-pointer">画像生成スキップ</label>
+              <div className="mb-8">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-4 gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-900">記事生成パイプライン</h2>
+                    <p className="text-slate-500 mt-1">AIエージェントが記事を自動作成します。</p>
                   </div>
-                  <select value={imageModel} onChange={(e) => setImageModel(e.target.value)} className="text-sm font-medium text-slate-700 bg-transparent outline-none pr-2" disabled={skipImages}>
-                    {IMAGE_MODELS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                  </select>
-                  <button onClick={runPipeline} disabled={status !== AgentType.IDLE && status !== AgentType.COMPLETED && status !== AgentType.ERROR} className={`px-6 py-3 rounded-lg font-bold shadow-md flex items-center gap-2 text-white ${status === AgentType.IDLE || status === AgentType.COMPLETED || status === AgentType.ERROR ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300'}`}>
-                    {status === AgentType.IDLE || status === AgentType.COMPLETED || status === AgentType.ERROR ? <><i className="fas fa-play"></i> 実行</> : <><i className="fas fa-circle-notch fa-spin"></i> 処理中</>}
-                  </button>
+                  <div className="flex items-center gap-3 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm">
+                    <div className="flex items-center h-full px-3 border-r border-slate-100">
+                      <input type="checkbox" id="skip-images" checked={skipImages} onChange={(e) => setSkipImages(e.target.checked)} disabled={status !== AgentType.IDLE && status !== AgentType.COMPLETED && status !== AgentType.ERROR} className="w-4 h-4 text-blue-600 rounded" />
+                      <label htmlFor="skip-images" className="ml-2 text-xs font-bold text-slate-500 cursor-pointer">画像生成スキップ</label>
+                    </div>
+                    <select value={imageModel} onChange={(e) => setImageModel(e.target.value)} className="text-sm font-medium text-slate-700 bg-transparent outline-none pr-2" disabled={skipImages}>
+                      {IMAGE_MODELS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                    </select>
+                    <button onClick={runPipeline} disabled={status !== AgentType.IDLE && status !== AgentType.COMPLETED && status !== AgentType.ERROR} className={`px-6 py-3 rounded-lg font-bold shadow-md flex items-center gap-2 text-white ${status === AgentType.IDLE || status === AgentType.COMPLETED || status === AgentType.ERROR ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300'}`}>
+                      {status === AgentType.IDLE || status === AgentType.COMPLETED || status === AgentType.ERROR ? <><i className="fas fa-play"></i> 実行</> : <><i className="fas fa-circle-notch fa-spin"></i> 処理中</>}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Article Configuration Panel */}
+                <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <i className="fas fa-cog text-blue-500"></i>
+                    <h3 className="text-lg font-bold text-slate-800">記事生成設定</h3>
+                  </div>
+
+                  <div className="mb-4">
+                    <label className="block text-sm font-bold text-slate-700 mb-2">
+                      生成する記事数
+                    </label>
+                    <select
+                      value={articleCount}
+                      onChange={(e) => setArticleCount(Number(e.target.value))}
+                      disabled={status !== AgentType.IDLE && status !== AgentType.COMPLETED && status !== AgentType.ERROR}
+                      className="w-full md:w-48 border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                    >
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                        <option key={n} value={n}>{n}件</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {articleCount > 0 && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <i className="fas fa-lightbulb text-amber-500"></i>
+                        <p className="text-sm text-slate-600">
+                          各記事について、作成したい内容を入力してください（任意）。未入力の場合は、データ分析結果から自動でトピックを決定します。
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {Array.from({ length: articleCount }).map((_, index) => (
+                          <div key={index} className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                            <label className="block text-sm font-bold text-slate-700 mb-2">
+                              記事 {index + 1} の内容
+                            </label>
+                            <textarea
+                              value={articleRequests[index] || ''}
+                              onChange={(e) => {
+                                const newRequests = [...articleRequests];
+                                newRequests[index] = e.target.value;
+                                setArticleRequests(newRequests);
+                              }}
+                              disabled={status !== AgentType.IDLE && status !== AgentType.COMPLETED && status !== AgentType.ERROR}
+                              placeholder="例: 時短レシピについての記事を作成したい"
+                              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none bg-white"
+                              rows={3}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

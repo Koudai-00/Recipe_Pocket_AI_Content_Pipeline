@@ -147,7 +147,7 @@ export const DEFAULT_PROMPTS = {
     出力JSON: { "status": "APPROVED"|"REVIEW_REQUIRED", "score": number, "comments": "..." }`
 };
 
-export const analystAgent = async (pastArticles: Article[] = [], promptTemplate?: string): Promise<AnalysisResult> => {
+export const analystAgent = async (pastArticles: Article[] = [], promptTemplate?: string, articleRequest?: string): Promise<AnalysisResult> => {
   console.log("Fetching Analytics Data from Backend...");
   const analyticsData = await getRealAnalyticsData();
   const pastTopics = pastArticles.map(a => a.topic || a.content.title).join(", ");
@@ -156,6 +156,14 @@ export const analystAgent = async (pastArticles: Article[] = [], promptTemplate?
   prompt = prompt.replace('{{ANALYTICS_DATA}}', JSON.stringify(analyticsData))
     .replace('{{PAST_TOPICS}}', pastTopics ? pastTopics : "なし")
     .replace('{{APP_CONTEXT}}', APP_CONTEXT);
+
+  if (articleRequest && articleRequest.trim()) {
+    prompt += `\n\n【特別指示】
+    以下のユーザー要望を最優先で考慮し、この要望に沿った記事トピックを決定してください：
+    「${articleRequest}」
+
+    この要望を基に、データ分析結果とマッチングさせながら、最適なトピックを決定してください。`;
+  }
 
   try {
     const response = await callGeminiApi(TEXT_MODEL, prompt, { responseMimeType: "application/json" });
@@ -166,13 +174,21 @@ export const analystAgent = async (pastArticles: Article[] = [], promptTemplate?
   }
 };
 
-export const marketerAgent = async (analysis: AnalysisResult, pastArticles: Article[] = [], promptTemplate?: string): Promise<StrategyResult> => {
+export const marketerAgent = async (analysis: AnalysisResult, pastArticles: Article[] = [], promptTemplate?: string, articleRequest?: string): Promise<StrategyResult> => {
   const pastTitles = pastArticles.map(a => a.content?.title || a.title).join(", ");
 
   let prompt = promptTemplate || DEFAULT_PROMPTS.marketer;
   prompt = prompt.replace('{{ANALYSIS_RESULT}}', JSON.stringify(analysis))
     .replace('{{PAST_TITLES}}', pastTitles)
     .replace('{{APP_CONTEXT}}', APP_CONTEXT);
+
+  if (articleRequest && articleRequest.trim()) {
+    prompt += `\n\n【重要指示】
+    ユーザーから以下のリクエストがあります。このリクエストを最優先でマーケティング戦略に反映してください：
+    「${articleRequest}」
+
+    上記リクエストに基づき、ターゲット層に響く魅力的なタイトルと構成を考えてください。`;
+  }
 
   try {
     const response = await callGeminiApi(TEXT_MODEL, prompt, { responseMimeType: "application/json" });
