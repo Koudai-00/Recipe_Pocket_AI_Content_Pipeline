@@ -655,6 +655,56 @@ app.post('/api/cms/post', async (req, res) => {
   }
 });
 
+// --- API: Storage Upload (uses Service Role Key to bypass RLS) ---
+app.post('/api/storage/upload', async (req, res) => {
+  try {
+    const { imageData, path: storagePath } = req.body;
+    if (!imageData || !storagePath) {
+      return res.status(400).json({ error: 'imageData and path are required' });
+    }
+
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ANON_KEY;
+    if (!supabaseUrl || !supabaseKey) {
+      return res.status(500).json({ error: 'Supabase credentials not configured on server' });
+    }
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    let buffer;
+    let contentType = 'image/png';
+
+    if (imageData.startsWith('http')) {
+      // Fetch external URL (e.g. Seedream)
+      const fetchRes = await fetch(imageData);
+      if (!fetchRes.ok) throw new Error(`Failed to fetch image from URL: ${fetchRes.status}`);
+      const arrayBuf = await fetchRes.arrayBuffer();
+      buffer = Buffer.from(arrayBuf);
+      contentType = fetchRes.headers.get('content-type') || 'image/png';
+    } else {
+      // Base64 data URI
+      const matches = imageData.match(/^data:([^;]+);base64,(.+)$/);
+      if (!matches) throw new Error('Invalid base64 image format');
+      contentType = matches[1];
+      buffer = Buffer.from(matches[2], 'base64');
+    }
+
+    const { error } = await supabase.storage
+      .from('images')
+      .upload(storagePath, buffer, { contentType, upsert: true });
+
+    if (error) throw new Error(`Supabase Storage Error: ${error.message}`);
+
+    const { data: urlData } = supabase.storage.from('images').getPublicUrl(storagePath);
+    res.json({ publicUrl: urlData.publicUrl });
+
+  } catch (err) {
+    console.error('Storage Upload Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Health Check
 app.get('/health', (req, res) => {
   res.status(200).send('OK');

@@ -1,19 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Helper: Convert Base64 Data URI to Blob
-const base64ToBlob = (base64Data: string): Blob => {
-  const parts = base64Data.split(';base64,');
-  const contentType = parts[0].split(':')[1];
-  const raw = atob(parts[1]);
-  const rawLength = raw.length;
-  const uInt8Array = new Uint8Array(rawLength);
-  for (let i = 0; i < rawLength; ++i) {
-    uInt8Array[i] = raw.charCodeAt(i);
-  }
-  return new Blob([uInt8Array], { type: contentType });
-};
-
-// Singleton Supabase client (initialized dynamically)
+// Singleton Supabase client (used for read operations only on the frontend)
 let supabaseInstance: any = null;
 
 export const initSupabaseClient = (url: string, key: string) => {
@@ -22,39 +9,29 @@ export const initSupabaseClient = (url: string, key: string) => {
   }
 };
 
+/**
+ * Upload a single image via the backend API (which uses the Service Role Key,
+ * bypassing Supabase Storage RLS policies).
+ * imageData: Base64 data URI (e.g. "data:image/png;base64,...") OR a public http URL
+ */
 export const uploadImageToStorage = async (imageData: string, path: string): Promise<string> => {
   if (!imageData || imageData.includes('placehold.co')) return imageData;
 
-  if (!supabaseInstance) {
-    console.warn("Supabase client not initialized. Image upload skipped.");
-    return "";
-  }
-
   try {
-    let blob: Blob;
-    if (imageData.startsWith('http')) {
-      const response = await fetch(imageData);
-      if (!response.ok) throw new Error(`Failed to fetch external image`);
-      blob = await response.blob();
-    } else {
-      blob = base64ToBlob(imageData);
-    }
+    const response = await fetch('/api/storage/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageData, path })
+    });
 
-    const { data, error } = await supabaseInstance.storage
-      .from('images')
-      .upload(path, blob, { contentType: blob.type, upsert: true });
-
-    if (error) {
-      console.error(`Upload failed:`, error.message);
+    if (!response.ok) {
+      const err = await response.json();
+      console.error(`Upload failed:`, err.error);
       return "";
     }
 
-    const { data: publicUrlData } = supabaseInstance.storage
-      .from('images')
-      .getPublicUrl(path);
-
-    return publicUrlData.publicUrl;
-
+    const data = await response.json();
+    return data.publicUrl || "";
   } catch (e) {
     console.error(`Storage Exception:`, e);
     return "";
@@ -65,7 +42,6 @@ export const uploadArticleImages = async (
   articleId: string,
   design: { thumbnail_base64?: string; section1_base64?: string; section2_base64?: string; section3_base64?: string }
 ): Promise<string[]> => {
-  // Parallel uploads
   const uploads = [
     design.thumbnail_base64 ? uploadImageToStorage(design.thumbnail_base64, `articles/${articleId}/thumbnail.png`) : Promise.resolve(""),
     design.section1_base64 ? uploadImageToStorage(design.section1_base64, `articles/${articleId}/section1.png`) : Promise.resolve(""),
