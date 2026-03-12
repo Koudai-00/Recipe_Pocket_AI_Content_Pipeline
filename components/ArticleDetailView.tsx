@@ -47,6 +47,17 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
         </pre>
     );
 
+    // Inject an image tag right after the first </h2> in the HTML.
+    // If no h2 exists, prepend the image at the top of the section.
+    const injectImageAfterH2 = (html: string, imageUrl: string | undefined): string => {
+        if (!imageUrl) return html;
+        const imgHtml = `<div style="margin: 1rem 0 1.5rem; border-radius: 10px; overflow: hidden;"><img src="${imageUrl}" alt="" style="width: 100%; display: block; border-radius: 10px;" /></div>`;
+        const h2End = html.indexOf('</h2>');
+        if (h2End === -1) return imgHtml + html;
+        const insertAt = h2End + '</h2>'.length;
+        return html.slice(0, insertAt) + imgHtml + html.slice(insertAt);
+    };
+
     return (
         <div className="bg-white rounded-xl shadow-sm w-full h-full flex flex-col animate-fade-in">
 
@@ -124,40 +135,26 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
                                     )}
                                 </div>
 
-                                {/* Content Parts */}
-                                <div className="space-y-8">
+                                {/* Content Parts — images injected after the first h2 in each section */}
+                                <div className="space-y-2">
                                     <div className="leading-relaxed text-lg"
-                                        dangerouslySetInnerHTML={{ __html: article.content?.body_p1 || "本文生成エラー" }}
+                                        dangerouslySetInnerHTML={{ __html: injectImageAfterH2(
+                                            article.content?.body_p1 || "本文生成エラー",
+                                            article.image_urls?.[1] || article.design?.section1_base64
+                                        ) }}
                                     />
-
-                                    {/* Section 1 Image */}
-                                    <div className="w-full h-48 rounded-lg overflow-hidden bg-slate-100">
-                                        {article.image_urls?.[1] || article.design?.section1_base64 ? (
-                                            <img src={article.image_urls?.[1] || article.design?.section1_base64} className="w-full h-full object-cover" />
-                                        ) : <div className="p-4 text-center text-slate-400">Section 1 Image Placeholder</div>}
-                                    </div>
-
                                     <div className="leading-relaxed text-lg"
-                                        dangerouslySetInnerHTML={{ __html: article.content?.body_p2 || "" }}
+                                        dangerouslySetInnerHTML={{ __html: injectImageAfterH2(
+                                            article.content?.body_p2 || "",
+                                            article.image_urls?.[2] || article.design?.section2_base64
+                                        ) }}
                                     />
-
-                                    {/* Section 2 Image */}
-                                    <div className="w-full h-48 rounded-lg overflow-hidden bg-slate-100">
-                                        {article.image_urls?.[2] || article.design?.section2_base64 ? (
-                                            <img src={article.image_urls?.[2] || article.design?.section2_base64} className="w-full h-full object-cover" />
-                                        ) : <div className="p-4 text-center text-slate-400">Section 2 Image Placeholder</div>}
-                                    </div>
-
                                     <div className="leading-relaxed text-lg"
-                                        dangerouslySetInnerHTML={{ __html: article.content?.body_p3 || "" }}
+                                        dangerouslySetInnerHTML={{ __html: injectImageAfterH2(
+                                            article.content?.body_p3 || "",
+                                            article.image_urls?.[3] || article.design?.section3_base64
+                                        ) }}
                                     />
-
-                                    {/* Section 3 Image */}
-                                    <div className="w-full h-48 rounded-lg overflow-hidden bg-slate-100">
-                                        {article.image_urls?.[3] || article.design?.section3_base64 ? (
-                                            <img src={article.image_urls?.[3] || article.design?.section3_base64} className="w-full h-full object-cover" />
-                                        ) : <div className="p-4 text-center text-slate-400">Section 3 Image Placeholder</div>}
-                                    </div>
                                 </div>
                             </div>
                         </div>
