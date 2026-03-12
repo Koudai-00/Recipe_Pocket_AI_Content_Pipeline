@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Article } from '../types';
-import ReactMarkdown from 'react-markdown';
 
 interface ArticleDetailViewProps {
     article: Article | null;
@@ -127,9 +126,9 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
 
                                 {/* Content Parts */}
                                 <div className="space-y-8">
-                                    <div className="leading-relaxed font-serif text-lg">
-                                        <ReactMarkdown>{article.content?.body_p1 || "本文生成エラー"}</ReactMarkdown>
-                                    </div>
+                                    <div className="leading-relaxed text-lg"
+                                        dangerouslySetInnerHTML={{ __html: article.content?.body_p1 || "本文生成エラー" }}
+                                    />
 
                                     {/* Section 1 Image */}
                                     <div className="w-full h-48 rounded-lg overflow-hidden bg-slate-100">
@@ -138,9 +137,9 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
                                         ) : <div className="p-4 text-center text-slate-400">Section 1 Image Placeholder</div>}
                                     </div>
 
-                                    <div className="leading-relaxed font-serif text-lg">
-                                        <ReactMarkdown>{article.content?.body_p2 || ""}</ReactMarkdown>
-                                    </div>
+                                    <div className="leading-relaxed text-lg"
+                                        dangerouslySetInnerHTML={{ __html: article.content?.body_p2 || "" }}
+                                    />
 
                                     {/* Section 2 Image */}
                                     <div className="w-full h-48 rounded-lg overflow-hidden bg-slate-100">
@@ -149,8 +148,15 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
                                         ) : <div className="p-4 text-center text-slate-400">Section 2 Image Placeholder</div>}
                                     </div>
 
-                                    <div className="leading-relaxed font-serif text-lg">
-                                        <ReactMarkdown>{article.content?.body_p3 || ""}</ReactMarkdown>
+                                    <div className="leading-relaxed text-lg"
+                                        dangerouslySetInnerHTML={{ __html: article.content?.body_p3 || "" }}
+                                    />
+
+                                    {/* Section 3 Image */}
+                                    <div className="w-full h-48 rounded-lg overflow-hidden bg-slate-100">
+                                        {article.image_urls?.[3] || article.design?.section3_base64 ? (
+                                            <img src={article.image_urls?.[3] || article.design?.section3_base64} className="w-full h-full object-cover" />
+                                        ) : <div className="p-4 text-center text-slate-400">Section 3 Image Placeholder</div>}
                                     </div>
                                 </div>
                             </div>
