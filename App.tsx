@@ -212,7 +212,8 @@ export default function App() {
 
           const rewriteContext = {
             feedback: review.comments,
-            currentContent: finalContentStr
+            currentContent: finalContentStr,
+            improvement_points: review.improvement_points
           };
 
           addLog(AgentType.WRITER, "指摘事項に基づき記事を修正中...", 'info');
@@ -221,7 +222,7 @@ export default function App() {
           addLog(AgentType.WRITER, `リライト完了。(Total: ${finalContentStr.length}文字)`, 'success');
 
           addLog(AgentType.CONTROLLER, "再レビューを実行中...", 'info');
-          finalReview = await controllerAgent(strategy, finalContentStr, systemSettings.agentPrompts?.controller);
+          finalReview = await controllerAgent(strategy, finalContentStr, systemSettings.agentPrompts?.controller, review.score);
 
           reviewHistory.push(finalReview);
         } else {
@@ -378,13 +379,14 @@ export default function App() {
     try {
       const rewriteFeedback = article.review?.comments || "品質向上のため、全体的なブラッシュアップをお願いします。";
       const currentContentFull = `${article.content.body_p1}\n${article.content.body_p2}\n${article.content.body_p3}`;
+      const improvementPoints = article.review?.improvement_points || [];
 
       // 1. Rewrite
       addLog(AgentType.WRITER, "記事を再執筆中... (レビュー指摘を反映)", 'info');
       const rawContent = await writerAgent(
         article.marketing_strategy,
         systemSettings.agentPrompts?.writer,
-        { feedback: rewriteFeedback, currentContent: currentContentFull }
+        { feedback: rewriteFeedback, currentContent: currentContentFull, improvement_points: improvementPoints }
       );
 
       const parts = rawContent.split('[SPLIT]');
@@ -397,7 +399,8 @@ export default function App() {
       // 2. Re-Review
       setStatus(AgentType.CONTROLLER);
       addLog(AgentType.CONTROLLER, "修正記事を再レビュー中...", 'info');
-      const review = await controllerAgent(article.marketing_strategy, rawContent, systemSettings.agentPrompts?.controller);
+      const previousScore = article.review?.score;
+      const review = await controllerAgent(article.marketing_strategy, rawContent, systemSettings.agentPrompts?.controller, previousScore);
       const isApproved = review.status?.toUpperCase() === 'APPROVED';
 
       addLog(AgentType.CONTROLLER, `再レビュー結果: ${isApproved ? '承認' : '再修正推奨'} (Score: ${review.score})`, isApproved ? 'success' : 'warning');

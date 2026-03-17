@@ -137,14 +137,19 @@ export const DEFAULT_PROMPTS = {
 
   controller: `あなたは編集長です。
     【戦略】{{STRATEGY}}
-    【記事】{{CONTENT_SNIPPET}}
+    【記事全文】{{CONTENT_FULL}}
+    {{PREVIOUS_SCORE_INSTRUCTION}}
     
     【採点基準】
     - 0-100点で採点してください。
     - 80点以上: 合格 (APPROVED)
     - 80点未満: 要修正 (REVIEW_REQUIRED)
 
-    出力JSON: { "status": "APPROVED"|"REVIEW_REQUIRED", "score": number, "comments": "..." }`
+    【重要】statusがREVIEW_REQUIREDの場合、improvement_pointsに3〜5項目の具体的な改善指示を記載してください。
+    各指摘は「[セクション名] 問題点の説明。具体的な改善方向」の形式にしてください。
+    例: "[セクション1] 冒頭が情報的すぎる。読者の悩みに共感する一文から始め、感情的な導入にする"
+
+    出力JSON: { "status": "APPROVED"|"REVIEW_REQUIRED", "score": number, "comments": "...", "improvement_points": ["...", "..."] }`
 };
 
 export const analystAgent = async (pastArticles: Article[] = [], promptTemplate?: string, articleRequest?: string): Promise<AnalysisResult> => {
@@ -199,10 +204,15 @@ export const marketerAgent = async (analysis: AnalysisResult, pastArticles: Arti
   }
 };
 
-export const writerAgent = async (strategy: StrategyResult, promptTemplate?: string, rewriteContext?: { feedback: string, currentContent: string }): Promise<string> => {
+export const writerAgent = async (strategy: StrategyResult, promptTemplate?: string, rewriteContext?: { feedback: string, currentContent: string, improvement_points?: string[] }): Promise<string> => {
   let prompt = promptTemplate || DEFAULT_PROMPTS.writer;
 
   if (rewriteContext) {
+    const contentToInclude = rewriteContext.currentContent.substring(0, 8000);
+    const improvementSection = rewriteContext.improvement_points && rewriteContext.improvement_points.length > 0
+      ? `\n    ＜具体的な改善指示（必ず全て対応してください）＞\n${rewriteContext.improvement_points.map((p, i) => `    ${i + 1}. ${p}`).join('\n')}`
+      : '';
+
     prompt += `
     
     【修正依頼】
@@ -210,13 +220,16 @@ export const writerAgent = async (strategy: StrategyResult, promptTemplate?: str
     
     ＜レビュワーコメント＞
     ${rewriteContext.feedback}
+    ${improvementSection}
     
-    ＜現在の記事内容＞
-    ${rewriteContext.currentContent.substring(0, 2000)}...
+    ＜現在の記事全文＞
+    ${contentToInclude}
     
     【指示】
-    指摘事項を反映し、より高品質な記事にリライトしてください。
-    出力形式は前回同様、[SPLIT]マーカーを含むMarkdown形式です。
+    - 上記の改善指示で指摘された箇所のみを修正してください。
+    - 指摘されていない部分は現在の記事をそのまま維持してください。
+    - 記事全体の長さ・ボリュームは維持してください（短縮しないこと）。
+    - 出力形式は前回同様、[SPLIT]マーカーを含むMarkdown形式です。
     `;
   }
 
@@ -267,18 +280,31 @@ export const designerAgent = async (title: string, content: string, imageModel: 
   return designData;
 };
 
-export const controllerAgent = async (strategy: StrategyResult, content: string, promptTemplate?: string): Promise<ReviewResult> => {
+export const controllerAgent = async (strategy: StrategyResult, content: string, promptTemplate?: string, previousScore?: number): Promise<ReviewResult> => {
   let prompt = promptTemplate || DEFAULT_PROMPTS.controller;
+
+  const contentForReview = content.substring(0, 6000);
+
+  const previousScoreInstruction = previousScore !== undefined
+    ? `【前回スコア: ${previousScore}点】リライトによる改善を評価してください。改善が見られる場合は前回スコア以上を付けてください。`
+    : '';
+
   prompt = prompt.replace('{{STRATEGY}}', JSON.stringify(strategy))
-    .replace('{{CONTENT_SNIPPET}}', content.substring(0, 1000) + '...');
+    .replace('{{CONTENT_FULL}}', contentForReview)
+    .replace('{{CONTENT_SNIPPET}}', contentForReview)
+    .replace('{{PREVIOUS_SCORE_INSTRUCTION}}', previousScoreInstruction);
 
   try {
     const response = await callGeminiApi(TEXT_MODEL, prompt, { responseMimeType: "application/json" });
     const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) throw new Error("No text");
-    return cleanJson(text);
+    const result = cleanJson(text);
+    if (!result.improvement_points) {
+      result.improvement_points = [];
+    }
+    return result;
   } catch (e) {
-    return { status: "REVIEW_REQUIRED", score: 0, comments: "Error" };
+    return { status: "REVIEW_REQUIRED", score: 0, comments: "Error", improvement_points: [] };
   }
 };
 

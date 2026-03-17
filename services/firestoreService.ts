@@ -38,6 +38,7 @@ export const saveToFirestore = async (article: Article): Promise<void> => {
         image_urls: article.image_urls,
         review_score: article.review?.score || 0,
         review_comment: article.review?.comments || "",
+        review_improvement_points: article.review?.improvement_points || [],
         review_history: article.review_history || [],
         rewrite_attempted: article.rewrite_attempted || false,
         design_prompts: {
@@ -154,7 +155,8 @@ export const fetchArticles = async (): Promise<Article[]> => {
             review: {
                 status: 'REVIEW_REQUIRED',
                 score: parsed.review_score || 0,
-                comments: parsed.review_comment || ""
+                comments: parsed.review_comment || "",
+                improvement_points: parsed.review_improvement_points || []
             },
 
             review_history: parsed.review_history || [],

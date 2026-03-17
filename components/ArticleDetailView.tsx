@@ -353,6 +353,19 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
                                                             スコア: {rev.score} / 100 ({rev.status})
                                                         </h3>
                                                         <p className="text-slate-700 italic">"{rev.comments}"</p>
+                                                        {rev.improvement_points && rev.improvement_points.length > 0 && (
+                                                            <div className="mt-3">
+                                                                <p className="text-xs font-bold text-slate-500 uppercase mb-1.5">改善指示</p>
+                                                                <ul className="space-y-1">
+                                                                    {rev.improvement_points.map((point: string, pIdx: number) => (
+                                                                        <li key={pIdx} className="flex items-start gap-2 text-sm text-slate-700 bg-white/60 p-2 rounded border border-slate-200/50">
+                                                                            <span className="w-5 h-5 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">{pIdx + 1}</span>
+                                                                            <span>{point}</span>
+                                                                        </li>
+                                                                    ))}
+                                                                </ul>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )
                                             })}
@@ -364,6 +377,19 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
                                                 品質スコア: {article.review.score} / 100
                                             </h3>
                                             <p className="text-slate-700 italic">"{article.review.comments}"</p>
+                                            {article.review.improvement_points && article.review.improvement_points.length > 0 && (
+                                                <div className="mt-3">
+                                                    <p className="text-xs font-bold text-slate-500 uppercase mb-1.5">改善指示</p>
+                                                    <ul className="space-y-1">
+                                                        {article.review.improvement_points.map((point, pIdx) => (
+                                                            <li key={pIdx} className="flex items-start gap-2 text-sm text-slate-700 bg-white/60 p-2 rounded border border-slate-200/50">
+                                                                <span className="w-5 h-5 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">{pIdx + 1}</span>
+                                                                <span>{point}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
