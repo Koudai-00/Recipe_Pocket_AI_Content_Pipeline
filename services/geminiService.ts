@@ -286,7 +286,10 @@ export const designerAgent = async (title: string, content: string, imageModel: 
 export const controllerAgent = async (strategy: StrategyResult, content: string, promptTemplate?: string, previousScore?: number): Promise<ReviewResult> => {
   let prompt = promptTemplate || DEFAULT_PROMPTS.controller;
 
-  const contentForReview = content.substring(0, 6000);
+  // Pass beginning + end of article so controller sees both structure and ending
+  const contentForReview = content.length > 8000
+    ? content.substring(0, 5000) + '\n\n...(中略)...\n\n' + content.substring(content.length - 3000)
+    : content;
 
   const previousScoreInstruction = previousScore !== undefined
     ? `【前回スコア: ${previousScore}点】リライトによる改善を評価してください。改善が見られる場合は前回スコア以上を付けてください。`
