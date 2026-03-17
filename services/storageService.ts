@@ -21,8 +21,14 @@ export const uploadImageToStorage = async (imageData: string, path: string): Pro
     });
 
     if (!response.ok) {
-      const err = await response.json();
-      console.error(`[StorageService] Upload failed for ${path}:`, err.error);
+      let errMsg = `HTTP ${response.status}`;
+      try {
+        const err = await response.json();
+        errMsg = err.error || errMsg;
+      } catch {
+        errMsg = await response.text().catch(() => errMsg);
+      }
+      console.error(`[StorageService] Upload failed for ${path}: ${errMsg}`);
       return "";
     }
 
@@ -83,8 +89,14 @@ export const reuploadArticleImages = async (
   });
 
   if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.error || 'Re-upload failed');
+    let errMsg = 'Re-upload failed';
+    try {
+      const err = await response.json();
+      errMsg = err.error || errMsg;
+    } catch {
+      errMsg = await response.text().catch(() => errMsg);
+    }
+    throw new Error(errMsg);
   }
 
   const data = await response.json();
