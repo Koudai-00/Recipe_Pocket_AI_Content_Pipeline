@@ -16,7 +16,7 @@ setupScheduler(app);
 
 const PORT = process.env.PORT || 8080;
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '20mb' }));
 app.use(cors());
 
 // --- Helper: Secret Manager ---
@@ -655,6 +655,60 @@ app.post('/api/cms/post', async (req, res) => {
   }
 });
 
+// --- Helper: Upload image buffer to Supabase Storage with retry ---
+const uploadToSupabaseStorage = async (supabase, storagePath, buffer, contentType, maxRetries = 1) => {
+  let lastError = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
+      console.log(`Storage upload retry ${attempt}/${maxRetries} for path: ${storagePath}`);
+      await new Promise(r => setTimeout(r, 1000 * attempt));
+    }
+
+    const { error } = await supabase.storage
+      .from('images')
+      .upload(storagePath, buffer, { contentType, upsert: true });
+
+    if (!error) {
+      const { data: urlData } = supabase.storage.from('images').getPublicUrl(storagePath);
+      const publicUrl = urlData?.publicUrl || '';
+
+      if (!publicUrl) {
+        console.error(`Storage upload succeeded but getPublicUrl returned empty for: ${storagePath}`);
+        lastError = new Error('Public URL generation failed after successful upload');
+        continue;
+      }
+
+      console.log(`Storage upload OK: ${storagePath} -> ${publicUrl}`);
+      return publicUrl;
+    }
+
+    console.error(`Storage upload attempt ${attempt} failed for ${storagePath}: ${error.message}`);
+    lastError = error;
+  }
+  throw new Error(`Supabase Storage Error after ${maxRetries + 1} attempts: ${lastError?.message}`);
+};
+
+// --- Helper: Parse image data (base64 or URL) into buffer ---
+const parseImageData = async (imageData) => {
+  let buffer;
+  let contentType = 'image/png';
+
+  if (imageData.startsWith('http')) {
+    const fetchRes = await fetch(imageData);
+    if (!fetchRes.ok) throw new Error(`Failed to fetch image from URL: ${fetchRes.status}`);
+    const arrayBuf = await fetchRes.arrayBuffer();
+    buffer = Buffer.from(arrayBuf);
+    contentType = fetchRes.headers.get('content-type') || 'image/png';
+  } else {
+    const matches = imageData.match(/^data:([^;]+);base64,(.+)$/);
+    if (!matches) throw new Error('Invalid base64 image format');
+    contentType = matches[1];
+    buffer = Buffer.from(matches[2], 'base64');
+  }
+
+  return { buffer, contentType };
+};
+
 // --- API: Storage Upload (uses Service Role Key to bypass RLS) ---
 app.post('/api/storage/upload', async (req, res) => {
   try {
@@ -662,6 +716,8 @@ app.post('/api/storage/upload', async (req, res) => {
     if (!imageData || !storagePath) {
       return res.status(400).json({ error: 'imageData and path are required' });
     }
+
+    console.log(`Storage upload request: path=${storagePath}, dataLength=${imageData.length}, type=${imageData.startsWith('http') ? 'URL' : 'base64'}`);
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ANON_KEY;
@@ -672,35 +728,112 @@ app.post('/api/storage/upload', async (req, res) => {
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    let buffer;
-    let contentType = 'image/png';
+    const { buffer, contentType } = await parseImageData(imageData);
+    console.log(`Parsed image: ${buffer.length} bytes, contentType=${contentType}`);
 
-    if (imageData.startsWith('http')) {
-      // Fetch external URL (e.g. Seedream)
-      const fetchRes = await fetch(imageData);
-      if (!fetchRes.ok) throw new Error(`Failed to fetch image from URL: ${fetchRes.status}`);
-      const arrayBuf = await fetchRes.arrayBuffer();
-      buffer = Buffer.from(arrayBuf);
-      contentType = fetchRes.headers.get('content-type') || 'image/png';
-    } else {
-      // Base64 data URI
-      const matches = imageData.match(/^data:([^;]+);base64,(.+)$/);
-      if (!matches) throw new Error('Invalid base64 image format');
-      contentType = matches[1];
-      buffer = Buffer.from(matches[2], 'base64');
-    }
-
-    const { error } = await supabase.storage
-      .from('images')
-      .upload(storagePath, buffer, { contentType, upsert: true });
-
-    if (error) throw new Error(`Supabase Storage Error: ${error.message}`);
-
-    const { data: urlData } = supabase.storage.from('images').getPublicUrl(storagePath);
-    res.json({ publicUrl: urlData.publicUrl });
+    const publicUrl = await uploadToSupabaseStorage(supabase, storagePath, buffer, contentType);
+    res.json({ publicUrl });
 
   } catch (err) {
     console.error('Storage Upload Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- API: Re-upload images for an existing article ---
+app.post('/api/storage/reupload', async (req, res) => {
+  try {
+    const { articleId, designPrompts, imageModel } = req.body;
+    if (!articleId || !designPrompts) {
+      return res.status(400).json({ error: 'articleId and designPrompts are required' });
+    }
+
+    console.log(`Re-upload request for article: ${articleId}, model: ${imageModel || 'seedream-4.5'}`);
+
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) throw new Error('API_KEY not set on server');
+
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ANON_KEY;
+    if (!supabaseUrl || !supabaseKey) throw new Error('Supabase credentials not configured');
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const ai = new GoogleGenAI({ apiKey });
+    const model = imageModel || 'seedream-4.5';
+
+    const prompts = [
+      { key: 'thumbnail', prompt: designPrompts.thumbnail_prompt, path: `articles/${articleId}/thumbnail.png` },
+      { key: 'section1', prompt: designPrompts.section1_prompt, path: `articles/${articleId}/section1.png` },
+      { key: 'section2', prompt: designPrompts.section2_prompt, path: `articles/${articleId}/section2.png` },
+      { key: 'section3', prompt: designPrompts.section3_prompt, path: `articles/${articleId}/section3.png` }
+    ];
+
+    const imageUrls = [];
+
+    for (const item of prompts) {
+      if (!item.prompt) {
+        imageUrls.push('');
+        continue;
+      }
+
+      try {
+        console.log(`Generating image for ${item.key}: "${item.prompt.substring(0, 60)}..."`);
+        const response = await ai.models.generateContent({
+          model: `models/${model}`,
+          contents: item.prompt,
+          config: { responseModalities: ['IMAGE'] }
+        });
+
+        const parts = response?.candidates?.[0]?.content?.parts || [];
+        const imagePart = parts.find(p => p.inlineData);
+        if (!imagePart?.inlineData) {
+          console.warn(`No image generated for ${item.key}`);
+          imageUrls.push('');
+          continue;
+        }
+
+        const buffer = Buffer.from(imagePart.inlineData.data, 'base64');
+        const contentType = imagePart.inlineData.mimeType || 'image/png';
+        const publicUrl = await uploadToSupabaseStorage(supabase, item.path, buffer, contentType);
+        imageUrls.push(publicUrl);
+      } catch (genErr) {
+        console.error(`Image generation failed for ${item.key}:`, genErr.message);
+        imageUrls.push('');
+      }
+    }
+
+    const creds = JSON.parse(process.env.GA4_CREDENTIALS_JSON || '{}');
+    const projectId = creds.project_id;
+    if (projectId) {
+      try {
+        const accessToken = await getGoogleAccessToken(['https://www.googleapis.com/auth/datastore']);
+        const urlsArray = imageUrls.map(u => ({ stringValue: u }));
+        const patchUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/articles/${articleId}?updateMask.fieldPaths=image_urls`;
+        const body = { fields: { image_urls: { arrayValue: { values: urlsArray } } } };
+
+        const apiRes = await fetch(patchUrl, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        if (!apiRes.ok) {
+          console.error('Firestore image_urls update failed:', await apiRes.text());
+        } else {
+          console.log('Firestore image_urls updated successfully');
+        }
+      } catch (fsErr) {
+        console.error('Firestore update error:', fsErr.message);
+      }
+    }
+
+    console.log(`Re-upload complete: ${imageUrls.filter(u => u).length}/${prompts.length} images uploaded`);
+    res.json({ imageUrls });
+
+  } catch (err) {
+    console.error('Re-upload Error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

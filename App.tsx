@@ -9,7 +9,7 @@ import MonthlyReportView from './components/MonthlyReportView';
 import { AgentType, LogEntry, Article, SystemSettings, DesignPrompts } from './types';
 import { IMAGE_MODELS } from './constants';
 import { analystAgent, marketerAgent, writerAgent, designerAgent, controllerAgent } from './services/geminiService';
-import { uploadArticleImages, initSupabaseClient } from './services/storageService';
+import { uploadArticleImages, initSupabaseClient, reuploadArticleImages } from './services/storageService';
 import { saveToFirestore, updateFirestoreStatus, fetchArticles } from './services/firestoreService';
 
 // Simple ID generator
@@ -479,6 +479,29 @@ export default function App() {
     }
   };
 
+  const handleReuploadImages = async (article: Article) => {
+    if (!article.design) {
+      addLog(AgentType.ERROR, 'デザインプロンプトが見つかりません。', 'error');
+      return;
+    }
+
+    addLog(AgentType.DESIGNER, `記事ID: ${article.id} の画像を再生成中...`, 'info');
+
+    try {
+      const imageUrls = await reuploadArticleImages(article.id, article.design, imageModel);
+
+      const successCount = imageUrls.filter(url => url && url.length > 0).length;
+      addLog(AgentType.DESIGNER, `画像再生成完了: ${successCount}/4 枚アップロード成功`, successCount > 0 ? 'success' : 'warning');
+
+      const updatedArticle: Article = { ...article, image_urls: imageUrls };
+      setArticles(prev => prev.map(a => a.id === article.id ? updatedArticle : a));
+      if (selectedArticle?.id === article.id) setSelectedArticle(updatedArticle);
+    } catch (e: any) {
+      console.error('Re-upload error:', e);
+      addLog(AgentType.ERROR, `画像再生成エラー: ${e.message}`, 'error');
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col md:flex-row font-sans">
       <aside className="w-full md:w-64 bg-slate-900 text-white flex flex-col shrink-0">
@@ -645,6 +668,7 @@ export default function App() {
               onBack={() => setCurrentView('articles')}
               onPost={handlePostArticle}
               onRewrite={handleRewrite}
+              onReuploadImages={handleReuploadImages}
             />
           )}
 
