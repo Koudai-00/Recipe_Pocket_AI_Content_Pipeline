@@ -38,8 +38,11 @@ export const saveToFirestore = async (article: Article): Promise<void> => {
         image_urls: article.image_urls,
         review_score: article.review?.score || 0,
         review_comment: article.review?.comments || "",
-        review_improvement_points: article.review?.improvement_points || [],
-        review_history: article.review_history || [],
+        review_improvement_points: JSON.stringify(article.review?.improvement_points || []),
+        review_history: (article.review_history || []).map((rev: any) => ({
+            ...rev,
+            improvement_points: JSON.stringify(rev.improvement_points || [])
+        })),
         rewrite_attempted: article.rewrite_attempted || false,
         design_prompts: {
             thumbnail: article.design?.thumbnail_prompt,
@@ -156,10 +159,17 @@ export const fetchArticles = async (): Promise<Article[]> => {
                 status: 'REVIEW_REQUIRED',
                 score: parsed.review_score || 0,
                 comments: parsed.review_comment || "",
-                improvement_points: parsed.review_improvement_points || []
+                improvement_points: (() => {
+                    try { return JSON.parse(parsed.review_improvement_points || '[]'); } catch { return []; }
+                })()
             },
 
-            review_history: parsed.review_history || [],
+            review_history: (parsed.review_history || []).map((rev: any) => ({
+                ...rev,
+                improvement_points: (() => {
+                    try { return JSON.parse(rev.improvement_points || '[]'); } catch { return []; }
+                })()
+            })),
             rewrite_attempted: parsed.rewrite_attempted || false,
 
             // Fallback for Title
