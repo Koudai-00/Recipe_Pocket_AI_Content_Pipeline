@@ -298,7 +298,11 @@ export const controllerAgent = async (strategy: StrategyResult, content: string,
     const response = await callGeminiApi(TEXT_MODEL, prompt, { responseMimeType: "application/json" });
     const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) throw new Error("No text");
-    const result = cleanJson(text);
+    let result = cleanJson(text);
+    // Guard: if AI returns an array instead of an object, extract first element
+    if (Array.isArray(result)) {
+      result = result[0] ?? {};
+    }
     if (!result.improvement_points) {
       result.improvement_points = [];
     }
