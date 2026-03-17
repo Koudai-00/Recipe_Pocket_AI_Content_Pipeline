@@ -488,7 +488,7 @@ export default function App() {
     addLog(AgentType.DESIGNER, `記事ID: ${article.id} の画像を再生成中...`, 'info');
 
     try {
-      const imageUrls = await reuploadArticleImages(article.id, article.design, imageModel);
+      const imageUrls = await reuploadArticleImages(article.id, article.design, imageModel, arkApiKey);
 
       const successCount = imageUrls.filter(url => url && url.length > 0).length;
       addLog(AgentType.DESIGNER, `画像再生成完了: ${successCount}/4 枚アップロード成功`, successCount > 0 ? 'success' : 'warning');

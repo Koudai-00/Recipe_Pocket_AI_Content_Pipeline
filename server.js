@@ -740,18 +740,72 @@ app.post('/api/storage/upload', async (req, res) => {
   }
 });
 
+// --- Helper: Generate image via Gemini API (server-side) ---
+const generateGeminiImageServer = async (prompt, model, apiKey) => {
+  const ai = new GoogleGenAI({ apiKey });
+  const response = await ai.models.generateContent({
+    model: model.startsWith('models/') ? model : `models/${model}`,
+    contents: prompt,
+    config: { responseModalities: ['IMAGE'] }
+  });
+
+  const parts = response?.candidates?.[0]?.content?.parts || [];
+  const imagePart = parts.find(p => p.inlineData);
+  if (!imagePart?.inlineData) return null;
+
+  return {
+    buffer: Buffer.from(imagePart.inlineData.data, 'base64'),
+    contentType: imagePart.inlineData.mimeType || 'image/png'
+  };
+};
+
+// --- Helper: Generate image via Seedream/ARK API (server-side) ---
+const generateSeedreamImageServer = async (prompt, arkApiKey) => {
+  if (!arkApiKey) {
+    console.warn('Seedream/ARK API Key not provided for re-upload');
+    return null;
+  }
+
+  const res = await fetch('https://ark.ap-southeast.bytepluses.com/api/v3/images/generations', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${arkApiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'seedream-4-5-251128',
+      prompt,
+      size: '2560x1440',
+      sequential_image_generation: 'disabled',
+      response_format: 'url',
+      stream: false,
+      watermark: false
+    })
+  });
+
+  if (!res.ok) throw new Error(`Seedream API error: ${await res.text()}`);
+
+  const data = await res.json();
+  if (data.data?.[0]?.url) {
+    return { url: data.data[0].url };
+  }
+  return null;
+};
+
 // --- API: Re-upload images for an existing article ---
 app.post('/api/storage/reupload', async (req, res) => {
   try {
-    const { articleId, designPrompts, imageModel } = req.body;
+    const { articleId, designPrompts, imageModel, arkApiKey } = req.body;
     if (!articleId || !designPrompts) {
       return res.status(400).json({ error: 'articleId and designPrompts are required' });
     }
 
-    console.log(`Re-upload request for article: ${articleId}, model: ${imageModel || 'seedream-4.5'}`);
+    const model = imageModel || 'seedream-4.5';
+    const isSeedream = model === 'seedream-4.5';
+    console.log(`Re-upload request for article: ${articleId}, model: ${model}, isSeedream: ${isSeedream}`);
 
     const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error('API_KEY not set on server');
+    if (!isSeedream && !apiKey) throw new Error('API_KEY not set on server');
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ANON_KEY;
@@ -759,9 +813,6 @@ app.post('/api/storage/reupload', async (req, res) => {
 
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(supabaseUrl, supabaseKey);
-
-    const ai = new GoogleGenAI({ apiKey });
-    const model = imageModel || 'seedream-4.5';
 
     const prompts = [
       { key: 'thumbnail', prompt: designPrompts.thumbnail_prompt, path: `articles/${articleId}/thumbnail.png` },
@@ -780,24 +831,31 @@ app.post('/api/storage/reupload', async (req, res) => {
 
       try {
         console.log(`Generating image for ${item.key}: "${item.prompt.substring(0, 60)}..."`);
-        const response = await ai.models.generateContent({
-          model: `models/${model}`,
-          contents: item.prompt,
-          config: { responseModalities: ['IMAGE'] }
-        });
 
-        const parts = response?.candidates?.[0]?.content?.parts || [];
-        const imagePart = parts.find(p => p.inlineData);
-        if (!imagePart?.inlineData) {
-          console.warn(`No image generated for ${item.key}`);
-          imageUrls.push('');
-          continue;
+        if (isSeedream) {
+          const result = await generateSeedreamImageServer(item.prompt, arkApiKey);
+          if (!result?.url) {
+            console.warn(`No Seedream image generated for ${item.key}`);
+            imageUrls.push('');
+            continue;
+          }
+          const fetchRes = await fetch(result.url);
+          if (!fetchRes.ok) throw new Error(`Failed to fetch Seedream image: ${fetchRes.status}`);
+          const arrayBuf = await fetchRes.arrayBuffer();
+          const buffer = Buffer.from(arrayBuf);
+          const contentType = fetchRes.headers.get('content-type') || 'image/png';
+          const publicUrl = await uploadToSupabaseStorage(supabase, item.path, buffer, contentType);
+          imageUrls.push(publicUrl);
+        } else {
+          const result = await generateGeminiImageServer(item.prompt, model, apiKey);
+          if (!result) {
+            console.warn(`No Gemini image generated for ${item.key}`);
+            imageUrls.push('');
+            continue;
+          }
+          const publicUrl = await uploadToSupabaseStorage(supabase, item.path, result.buffer, result.contentType);
+          imageUrls.push(publicUrl);
         }
-
-        const buffer = Buffer.from(imagePart.inlineData.data, 'base64');
-        const contentType = imagePart.inlineData.mimeType || 'image/png';
-        const publicUrl = await uploadToSupabaseStorage(supabase, item.path, buffer, contentType);
-        imageUrls.push(publicUrl);
       } catch (genErr) {
         console.error(`Image generation failed for ${item.key}:`, genErr.message);
         imageUrls.push('');
@@ -829,8 +887,9 @@ app.post('/api/storage/reupload', async (req, res) => {
       }
     }
 
-    console.log(`Re-upload complete: ${imageUrls.filter(u => u).length}/${prompts.length} images uploaded`);
-    res.json({ imageUrls });
+    const successCount = imageUrls.filter(u => u).length;
+    console.log(`Re-upload complete: ${successCount}/${prompts.length} images uploaded`);
+    res.json({ imageUrls, successCount, totalCount: prompts.length });
 
   } catch (err) {
     console.error('Re-upload Error:', err.message);

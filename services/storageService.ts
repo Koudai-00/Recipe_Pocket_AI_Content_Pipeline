@@ -71,14 +71,15 @@ export const uploadArticleImages = async (
 export const reuploadArticleImages = async (
   articleId: string,
   designPrompts: { thumbnail_prompt?: string; section1_prompt?: string; section2_prompt?: string; section3_prompt?: string },
-  imageModel?: string
+  imageModel?: string,
+  arkApiKey?: string
 ): Promise<string[]> => {
-  console.log(`[StorageService] Re-uploading images for article: ${articleId}`);
+  console.log(`[StorageService] Re-uploading images for article: ${articleId}, model: ${imageModel}`);
 
   const response = await fetch('/api/storage/reupload', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ articleId, designPrompts, imageModel })
+    body: JSON.stringify({ articleId, designPrompts, imageModel, arkApiKey })
   });
 
   if (!response.ok) {
