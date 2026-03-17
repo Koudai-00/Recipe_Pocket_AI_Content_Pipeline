@@ -378,7 +378,8 @@ export default function App() {
 
     try {
       const rewriteFeedback = article.review?.comments || "品質向上のため、全体的なブラッシュアップをお願いします。";
-      const currentContentFull = `${article.content.body_p1}\n${article.content.body_p2}\n${article.content.body_p3}`;
+      const currentContentFull = [article.content.body_p1, article.content.body_p2, article.content.body_p3]
+        .filter(Boolean).join('\n[SPLIT]\n');
       const improvementPoints = article.review?.improvement_points || [];
 
       // 1. Rewrite
