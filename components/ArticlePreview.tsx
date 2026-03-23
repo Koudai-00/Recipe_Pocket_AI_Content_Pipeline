@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { Article } from '../types';
 import ReactMarkdown from 'react-markdown';
+<<<<<<< HEAD
 import rehypeRaw from 'rehype-raw';
+=======
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
 
 interface ArticlePreviewProps {
   article: Article | null;
@@ -109,7 +112,11 @@ const ArticlePreview: React.FC<ArticlePreviewProps> = ({ article, onClose, onPos
                   {/* Content Parts */}
                   <div className="space-y-8">
                     <div className="leading-relaxed font-serif text-lg">
+<<<<<<< HEAD
                       <ReactMarkdown rehypePlugins={[rehypeRaw]}>{article.content?.body_p1 || "本文生成エラー"}</ReactMarkdown>
+=======
+                      <ReactMarkdown>{article.content?.body_p1 || "本文生成エラー"}</ReactMarkdown>
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
                     </div>
 
                     {/* Section 1 Image */}
@@ -120,7 +127,11 @@ const ArticlePreview: React.FC<ArticlePreviewProps> = ({ article, onClose, onPos
                     </div>
 
                     <div className="leading-relaxed font-serif text-lg">
+<<<<<<< HEAD
                       <ReactMarkdown rehypePlugins={[rehypeRaw]}>{article.content?.body_p2 || ""}</ReactMarkdown>
+=======
+                      <ReactMarkdown>{article.content?.body_p2 || ""}</ReactMarkdown>
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
                     </div>
 
                     {/* Section 2 Image */}
@@ -131,7 +142,11 @@ const ArticlePreview: React.FC<ArticlePreviewProps> = ({ article, onClose, onPos
                     </div>
 
                     <div className="leading-relaxed font-serif text-lg">
+<<<<<<< HEAD
                       <ReactMarkdown rehypePlugins={[rehypeRaw]}>{article.content?.body_p3 || ""}</ReactMarkdown>
+=======
+                      <ReactMarkdown>{article.content?.body_p3 || ""}</ReactMarkdown>
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
                     </div>
                   </div>
                 </div>

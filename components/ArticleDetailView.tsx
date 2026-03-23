@@ -1,23 +1,38 @@
 import React, { useState } from 'react';
 import { Article } from '../types';
+<<<<<<< HEAD
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
+=======
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
 
 interface ArticleDetailViewProps {
     article: Article | null;
     onBack: () => void;
     onPost?: (id: string) => Promise<void>;
     onRewrite?: (article: Article) => Promise<void>;
+<<<<<<< HEAD
+=======
+    onReuploadImages?: (article: Article) => Promise<void>;
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
 }
 
 type Tab = 'preview' | 'reports';
 type ReportTab = 'analysis' | 'strategy' | 'design' | 'review';
 
+<<<<<<< HEAD
 const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, onPost, onRewrite }) => {
+=======
+const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, onPost, onRewrite, onReuploadImages }) => {
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
     const [activeTab, setActiveTab] = useState<Tab>('preview');
     const [activeReport, setActiveReport] = useState<ReportTab>('analysis');
     const [isPosting, setIsPosting] = useState(false);
     const [isRewriting, setIsRewriting] = useState(false);
+<<<<<<< HEAD
+=======
+    const [isReuploading, setIsReuploading] = useState(false);
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
 
     if (!article) return <div className="p-8 text-center text-slate-500">記事が見つかりません</div>;
 
@@ -43,12 +58,43 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
         }
     };
 
+<<<<<<< HEAD
+=======
+    const handleReuploadClick = async () => {
+        if (onReuploadImages && confirm('デザインプロンプトから画像を再生成し、Storageへアップロードしますか？')) {
+            setIsReuploading(true);
+            try {
+                await onReuploadImages(article);
+            } finally {
+                setIsReuploading(false);
+            }
+        }
+    };
+
+    const hasDesignPrompts = article.design && (article.design.thumbnail_prompt || article.design.section1_prompt);
+    const allImagesEmpty = !article.image_urls || article.image_urls.length === 0 || article.image_urls.every(url => !url);
+
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
     const renderJson = (data: any) => (
         <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto text-xs font-mono border border-slate-700 shadow-inner">
             <code>{JSON.stringify(data, null, 2)}</code>
         </pre>
     );
 
+<<<<<<< HEAD
+=======
+    // Inject an image tag right after the first </h2> in the HTML.
+    // If no h2 exists, prepend the image at the top of the section.
+    const injectImageAfterH2 = (html: string, imageUrl: string | undefined): string => {
+        if (!imageUrl) return html;
+        const imgHtml = `<div style="margin: 1rem 0 1.5rem; border-radius: 10px; overflow: hidden;"><img src="${imageUrl}" alt="" style="width: 100%; display: block; border-radius: 10px;" /></div>`;
+        const h2End = html.indexOf('</h2>');
+        if (h2End === -1) return imgHtml + html;
+        const insertAt = h2End + '</h2>'.length;
+        return html.slice(0, insertAt) + imgHtml + html.slice(insertAt);
+    };
+
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
     return (
         <div className="bg-white rounded-xl shadow-sm w-full h-full flex flex-col animate-fade-in">
 
@@ -110,6 +156,31 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
                             <div className="prose prose-slate max-w-none bg-white p-8 rounded-lg border border-slate-100 shadow-sm">
                                 <h1 className="text-3xl font-bold text-slate-900 mb-6">{article.content?.title || article.title}</h1>
 
+<<<<<<< HEAD
+=======
+                                {/* Missing Images Banner */}
+                                {allImagesEmpty && hasDesignPrompts && onReuploadImages && (
+                                    <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg mb-6">
+                                        <i className="fas fa-exclamation-triangle text-amber-500 text-lg"></i>
+                                        <div className="flex-1">
+                                            <p className="text-sm font-medium text-amber-800">画像がありません</p>
+                                            <p className="text-xs text-amber-600">アップロードに失敗した可能性があります。デザインプロンプトから画像を再生成できます。</p>
+                                        </div>
+                                        <button
+                                            onClick={handleReuploadClick}
+                                            disabled={isReuploading}
+                                            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-xs font-bold transition-colors flex items-center gap-1.5 whitespace-nowrap"
+                                        >
+                                            {isReuploading ? (
+                                                <><i className="fas fa-sync fa-spin"></i> 再生成中...</>
+                                            ) : (
+                                                <><i className="fas fa-redo"></i> 画像を再生成</>
+                                            )}
+                                        </button>
+                                    </div>
+                                )}
+
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
                                 {/* Thumbnail Image */}
                                 <div className="w-full h-64 rounded-lg overflow-hidden relative group border border-slate-200 bg-slate-100 mb-8 shadow-sm">
                                     {article.image_urls?.[0] || article.design?.thumbnail_base64 ? (
@@ -126,6 +197,7 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
                                     )}
                                 </div>
 
+<<<<<<< HEAD
                                 {/* Content Parts */}
                                 <div className="space-y-8">
                                     <div className="leading-relaxed font-serif text-lg">
@@ -153,6 +225,28 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
                                     <div className="leading-relaxed font-serif text-lg">
                                         <ReactMarkdown rehypePlugins={[rehypeRaw]}>{article.content?.body_p3 || ""}</ReactMarkdown>
                                     </div>
+=======
+                                {/* Content Parts — images injected after the first h2 in each section */}
+                                <div className="space-y-2">
+                                    <div className="leading-relaxed text-lg"
+                                        dangerouslySetInnerHTML={{ __html: injectImageAfterH2(
+                                            article.content?.body_p1 || "本文生成エラー",
+                                            article.image_urls?.[1] || article.design?.section1_base64
+                                        ) }}
+                                    />
+                                    <div className="leading-relaxed text-lg"
+                                        dangerouslySetInnerHTML={{ __html: injectImageAfterH2(
+                                            article.content?.body_p2 || "",
+                                            article.image_urls?.[2] || article.design?.section2_base64
+                                        ) }}
+                                    />
+                                    <div className="leading-relaxed text-lg"
+                                        dangerouslySetInnerHTML={{ __html: injectImageAfterH2(
+                                            article.content?.body_p3 || "",
+                                            article.image_urls?.[3] || article.design?.section3_base64
+                                        ) }}
+                                    />
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
                                 </div>
                             </div>
                         </div>
@@ -313,6 +407,22 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
                                                             スコア: {rev.score} / 100 ({rev.status})
                                                         </h3>
                                                         <p className="text-slate-700 italic">"{rev.comments}"</p>
+<<<<<<< HEAD
+=======
+                                                        {rev.improvement_points && rev.improvement_points.length > 0 && (
+                                                            <div className="mt-3">
+                                                                <p className="text-xs font-bold text-slate-500 uppercase mb-1.5">改善指示</p>
+                                                                <ul className="space-y-1">
+                                                                    {rev.improvement_points.map((point: string, pIdx: number) => (
+                                                                        <li key={pIdx} className="flex items-start gap-2 text-sm text-slate-700 bg-white/60 p-2 rounded border border-slate-200/50">
+                                                                            <span className="w-5 h-5 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">{pIdx + 1}</span>
+                                                                            <span>{point}</span>
+                                                                        </li>
+                                                                    ))}
+                                                                </ul>
+                                                            </div>
+                                                        )}
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
                                                     </div>
                                                 )
                                             })}
@@ -324,6 +434,22 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
                                                 品質スコア: {article.review.score} / 100
                                             </h3>
                                             <p className="text-slate-700 italic">"{article.review.comments}"</p>
+<<<<<<< HEAD
+=======
+                                            {article.review.improvement_points && article.review.improvement_points.length > 0 && (
+                                                <div className="mt-3">
+                                                    <p className="text-xs font-bold text-slate-500 uppercase mb-1.5">改善指示</p>
+                                                    <ul className="space-y-1">
+                                                        {article.review.improvement_points.map((point, pIdx) => (
+                                                            <li key={pIdx} className="flex items-start gap-2 text-sm text-slate-700 bg-white/60 p-2 rounded border border-slate-200/50">
+                                                                <span className="w-5 h-5 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">{pIdx + 1}</span>
+                                                                <span>{point}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
                                         </div>
                                     )}
 
@@ -340,6 +466,24 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
 
             {/* Footer Actions */}
             <div className="px-6 py-4 bg-white border-t border-slate-200 flex justify-end gap-3 shrink-0 rounded-b-xl">
+<<<<<<< HEAD
+=======
+                {/* Re-upload Images Button */}
+                {allImagesEmpty && hasDesignPrompts && onReuploadImages && (
+                    <button
+                        onClick={handleReuploadClick}
+                        disabled={isReuploading || isPosting || isRewriting}
+                        className={`px-4 py-2 rounded-lg text-amber-700 border border-amber-300 shadow-sm text-sm font-bold transition-colors flex items-center bg-amber-50 hover:bg-amber-100 ${isReuploading ? 'opacity-80 cursor-wait' : ''}`}
+                    >
+                        {isReuploading ? (
+                            <><i className="fas fa-sync fa-spin mr-2 text-amber-500"></i> 画像再生成中...</>
+                        ) : (
+                            <><i className="fas fa-redo mr-2 text-amber-500"></i> 画像を再生成</>
+                        )}
+                    </button>
+                )}
+
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
                 {/* Rewrite Button - Only for non-posted, reviewing/rejected or low score */}
                 {article.status !== 'Posted' && (
                     <button

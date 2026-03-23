@@ -47,6 +47,10 @@ export interface ReviewResult {
   status: 'APPROVED' | 'REVIEW_REQUIRED';
   score: number;
   comments: string;
+<<<<<<< HEAD
+=======
+  improvement_points?: string[];
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
 }
 
 // Updated to match Firestore Schema Requirements

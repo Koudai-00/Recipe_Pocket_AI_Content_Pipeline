@@ -21,7 +21,10 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
+<<<<<<< HEAD
     "rehype-raw": "^7.0.0",
+=======
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
     "uuid": "^13.0.0",
     "vite": "^5.4.1"
   },

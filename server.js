@@ -16,7 +16,11 @@ setupScheduler(app);
 
 const PORT = process.env.PORT || 8080;
 
+<<<<<<< HEAD
 app.use(express.json({ limit: '10mb' }));
+=======
+app.use(express.json({ limit: '20mb' }));
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
 app.use(cors());
 
 // --- Helper: Secret Manager ---
@@ -32,10 +36,17 @@ const loadSecrets = async () => {
     { name: 'GEMINI_API_KEY', env: 'API_KEY' },
     { name: 'SUPABASE_URL', env: 'SUPABASE_URL' },
     { name: 'SUPABASE_SERVICE_ANON_KEY', env: 'SUPABASE_SERVICE_ANON_KEY' },
+<<<<<<< HEAD
     { name: 'SUPABASE_AUTHOR_ID', env: 'SUPABASE_AUTHOR_ID' },
     { name: 'GA4_CREDENTIALS_JSON', env: 'GA4_CREDENTIALS_JSON' },
     { name: 'GA4_PROPERTY_ID', env: 'GA4_PROPERTY_ID' },
     { name: 'SEEDREAM_API_KEY', env: 'SEEDREAM_API_KEY' }
+=======
+    { name: 'SUPABASE_SERVICE_ROLE_KEY', env: 'SUPABASE_SERVICE_ROLE_KEY' },
+    { name: 'SUPABASE_AUTHOR_ID', env: 'SUPABASE_AUTHOR_ID' },
+    { name: 'GA4_CREDENTIALS_JSON', env: 'GA4_CREDENTIALS_JSON' },
+    { name: 'GA4_PROPERTY_ID', env: 'GA4_PROPERTY_ID' }
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
   ];
 
   console.log(`Fetching secrets from Secret Manager for project: ${projectId}...`);
@@ -104,10 +115,17 @@ app.get('/api/config', (req, res) => {
   res.json({
     supabaseUrl: process.env.SUPABASE_URL || '',
     supabaseAnonKey: process.env.SUPABASE_SERVICE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '',
+<<<<<<< HEAD
     ga4PropertyId: process.env.GA4_PROPERTY_ID ? 'SET' : '', // Just status check
     geminiApiKey: process.env.API_KEY ? 'SET' : '', // Just status check
     ga4Credentials: process.env.GA4_CREDENTIALS_JSON ? 'SET' : '', // Just status check
     seedreamApiKey: process.env.SEEDREAM_API_KEY || ''
+=======
+    supabaseAuthorId: process.env.SUPABASE_AUTHOR_ID || '',
+    ga4PropertyId: process.env.GA4_PROPERTY_ID ? 'SET' : '', // Just status check
+    geminiApiKey: process.env.API_KEY ? 'SET' : '', // Just status check
+    ga4Credentials: process.env.GA4_CREDENTIALS_JSON ? 'SET' : '' // Just status check
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
   });
 });
 
@@ -389,7 +407,11 @@ app.get('/api/settings/general', async (req, res) => {
     // Map Firestore fields to JSON
     res.json({
       articlesPerRun: fields.articlesPerRun ? parseInt(fields.articlesPerRun.integerValue) : 1,
+<<<<<<< HEAD
       defaultImageModel: fields.defaultImageModel?.stringValue || 'seedream-5.0-lite',
+=======
+      defaultImageModel: fields.defaultImageModel?.stringValue || 'seedream-4.5',
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
       schedulerEnabled: fields.schedulerEnabled?.booleanValue || false,
       cronSchedule: fields.cronSchedule?.stringValue || '0 9 * * *'
     });
@@ -564,6 +586,342 @@ app.post('/api/firestore/monthly_reports', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+<<<<<<< HEAD
+=======
+// --- Helper: Generate URL-safe slug ---
+const generateSlug = (title) => {
+  const timestamp = Date.now();
+  const randomStr = Math.random().toString(36).substring(2, 8);
+
+  let slug = title
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .substring(0, 30);
+
+  if (!slug) {
+    slug = 'article';
+  }
+
+  return `${slug}-${timestamp}-${randomStr}`;
+};
+
+// --- API: CMS Post (Supabase) Proxy ---
+app.post('/api/cms/post', async (req, res) => {
+  try {
+    const { article } = req.body;
+
+    // Check if Service Role Key is available
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase credentials (URL or Key) are missing in settings.');
+    }
+
+    // Import Supabase client dynamically
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Prepare content string
+    let contentToPost = '';
+    if (typeof article.content === 'string') {
+      contentToPost = article.content;
+    } else if (article.content) {
+      contentToPost = `${article.content.body_p1 || ''}\n\n${article.content.body_p2 || ''}\n\n${article.content.body_p3 || ''}`;
+    }
+
+    // Prioritize uploaded URL over Base64 string
+    const thumbnailUrl = (article.image_urls && article.image_urls.length > 0 && article.image_urls[0])
+      ? article.image_urls[0]
+      : undefined;
+
+    // Generate slug from title
+    const slug = generateSlug(article.title);
+    const now = new Date().toISOString();
+
+    console.log(`Posting to Supabase CMS: ${article.title}`);
+    console.log(`URL: ${supabaseUrl}`);
+    console.log(`Using key type: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Service Role Key' : 'Anon Key'}`);
+    console.log(`Generated slug: ${slug}`);
+
+    const { data, error } = await supabase
+      .from('articles')
+      .insert([
+        {
+          title: article.title,
+          slug: slug,
+          content: contentToPost,
+          thumbnail_url: thumbnailUrl,
+          published: true,
+          published_at: now,
+          created_at: now,
+          updated_at: now,
+          view_count: 0
+        }
+      ])
+      .select();
+
+    if (error) {
+      console.error('Supabase Insert Error:', error);
+      throw new Error(`Supabase Error: ${error.message}`);
+    }
+
+    console.log('Successfully posted to Supabase CMS:', data?.[0]?.id);
+    res.json({ success: true, id: data?.[0]?.id || 'unknown-id' });
+
+  } catch (error) {
+    console.error('CMS Post Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- Helper: Upload image buffer to Supabase Storage with retry ---
+const uploadToSupabaseStorage = async (supabase, storagePath, buffer, contentType, maxRetries = 1) => {
+  let lastError = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
+      console.log(`Storage upload retry ${attempt}/${maxRetries} for path: ${storagePath}`);
+      await new Promise(r => setTimeout(r, 1000 * attempt));
+    }
+
+    const { error } = await supabase.storage
+      .from('images')
+      .upload(storagePath, buffer, { contentType, upsert: true });
+
+    if (!error) {
+      const { data: urlData } = supabase.storage.from('images').getPublicUrl(storagePath);
+      const publicUrl = urlData?.publicUrl || '';
+
+      if (!publicUrl) {
+        console.error(`Storage upload succeeded but getPublicUrl returned empty for: ${storagePath}`);
+        lastError = new Error('Public URL generation failed after successful upload');
+        continue;
+      }
+
+      console.log(`Storage upload OK: ${storagePath} -> ${publicUrl}`);
+      return publicUrl;
+    }
+
+    console.error(`Storage upload attempt ${attempt} failed for ${storagePath}: ${error.message}`);
+    lastError = error;
+  }
+  throw new Error(`Supabase Storage Error after ${maxRetries + 1} attempts: ${lastError?.message}`);
+};
+
+// --- Helper: Parse image data (base64 or URL) into buffer ---
+const parseImageData = async (imageData) => {
+  let buffer;
+  let contentType = 'image/png';
+
+  if (imageData.startsWith('http')) {
+    const fetchRes = await fetch(imageData);
+    if (!fetchRes.ok) throw new Error(`Failed to fetch image from URL: ${fetchRes.status}`);
+    const arrayBuf = await fetchRes.arrayBuffer();
+    buffer = Buffer.from(arrayBuf);
+    contentType = fetchRes.headers.get('content-type') || 'image/png';
+  } else {
+    const matches = imageData.match(/^data:([^;]+);base64,(.+)$/);
+    if (!matches) throw new Error('Invalid base64 image format');
+    contentType = matches[1];
+    buffer = Buffer.from(matches[2], 'base64');
+  }
+
+  return { buffer, contentType };
+};
+
+// --- API: Storage Upload (uses Service Role Key to bypass RLS) ---
+app.post('/api/storage/upload', async (req, res) => {
+  try {
+    const { imageData, path: storagePath } = req.body;
+    if (!imageData || !storagePath) {
+      return res.status(400).json({ error: 'imageData and path are required' });
+    }
+
+    console.log(`Storage upload request: path=${storagePath}, dataLength=${imageData.length}, type=${imageData.startsWith('http') ? 'URL' : 'base64'}`);
+
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ANON_KEY;
+    if (!supabaseUrl || !supabaseKey) {
+      return res.status(500).json({ error: 'Supabase credentials not configured on server' });
+    }
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { buffer, contentType } = await parseImageData(imageData);
+    console.log(`Parsed image: ${buffer.length} bytes, contentType=${contentType}`);
+
+    const publicUrl = await uploadToSupabaseStorage(supabase, storagePath, buffer, contentType);
+    res.json({ publicUrl });
+
+  } catch (err) {
+    console.error('Storage Upload Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Helper: Generate image via Gemini API (server-side) ---
+const generateGeminiImageServer = async (prompt, model, apiKey) => {
+  const ai = new GoogleGenAI({ apiKey });
+  const response = await ai.models.generateContent({
+    model: model.startsWith('models/') ? model : `models/${model}`,
+    contents: prompt,
+    config: { responseModalities: ['IMAGE'] }
+  });
+
+  const parts = response?.candidates?.[0]?.content?.parts || [];
+  const imagePart = parts.find(p => p.inlineData);
+  if (!imagePart?.inlineData) return null;
+
+  return {
+    buffer: Buffer.from(imagePart.inlineData.data, 'base64'),
+    contentType: imagePart.inlineData.mimeType || 'image/png'
+  };
+};
+
+// --- Helper: Generate image via Seedream/ARK API (server-side) ---
+const generateSeedreamImageServer = async (prompt, arkApiKey) => {
+  if (!arkApiKey) {
+    console.warn('Seedream/ARK API Key not provided for re-upload');
+    return null;
+  }
+
+  const res = await fetch('https://ark.ap-southeast.bytepluses.com/api/v3/images/generations', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${arkApiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'seedream-4-5-251128',
+      prompt,
+      size: '2560x1440',
+      sequential_image_generation: 'disabled',
+      response_format: 'url',
+      stream: false,
+      watermark: false
+    })
+  });
+
+  if (!res.ok) throw new Error(`Seedream API error: ${await res.text()}`);
+
+  const data = await res.json();
+  if (data.data?.[0]?.url) {
+    return { url: data.data[0].url };
+  }
+  return null;
+};
+
+// --- API: Re-upload images for an existing article ---
+app.post('/api/storage/reupload', async (req, res) => {
+  try {
+    const { articleId, designPrompts, imageModel, arkApiKey } = req.body;
+    if (!articleId || !designPrompts) {
+      return res.status(400).json({ error: 'articleId and designPrompts are required' });
+    }
+
+    const model = imageModel || 'seedream-4.5';
+    const isSeedream = model === 'seedream-4.5';
+    console.log(`Re-upload request for article: ${articleId}, model: ${model}, isSeedream: ${isSeedream}`);
+
+    const apiKey = process.env.API_KEY;
+    if (!isSeedream && !apiKey) throw new Error('API_KEY not set on server');
+
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ANON_KEY;
+    if (!supabaseUrl || !supabaseKey) throw new Error('Supabase credentials not configured');
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const prompts = [
+      { key: 'thumbnail', prompt: designPrompts.thumbnail_prompt, path: `articles/${articleId}/thumbnail.png` },
+      { key: 'section1', prompt: designPrompts.section1_prompt, path: `articles/${articleId}/section1.png` },
+      { key: 'section2', prompt: designPrompts.section2_prompt, path: `articles/${articleId}/section2.png` },
+      { key: 'section3', prompt: designPrompts.section3_prompt, path: `articles/${articleId}/section3.png` }
+    ];
+
+    const imageUrls = [];
+
+    for (const item of prompts) {
+      if (!item.prompt) {
+        imageUrls.push('');
+        continue;
+      }
+
+      try {
+        console.log(`Generating image for ${item.key}: "${item.prompt.substring(0, 60)}..."`);
+
+        if (isSeedream) {
+          const result = await generateSeedreamImageServer(item.prompt, arkApiKey);
+          if (!result?.url) {
+            console.warn(`No Seedream image generated for ${item.key}`);
+            imageUrls.push('');
+            continue;
+          }
+          const fetchRes = await fetch(result.url);
+          if (!fetchRes.ok) throw new Error(`Failed to fetch Seedream image: ${fetchRes.status}`);
+          const arrayBuf = await fetchRes.arrayBuffer();
+          const buffer = Buffer.from(arrayBuf);
+          const contentType = fetchRes.headers.get('content-type') || 'image/png';
+          const publicUrl = await uploadToSupabaseStorage(supabase, item.path, buffer, contentType);
+          imageUrls.push(publicUrl);
+        } else {
+          const result = await generateGeminiImageServer(item.prompt, model, apiKey);
+          if (!result) {
+            console.warn(`No Gemini image generated for ${item.key}`);
+            imageUrls.push('');
+            continue;
+          }
+          const publicUrl = await uploadToSupabaseStorage(supabase, item.path, result.buffer, result.contentType);
+          imageUrls.push(publicUrl);
+        }
+      } catch (genErr) {
+        console.error(`Image generation failed for ${item.key}:`, genErr.message);
+        imageUrls.push('');
+      }
+    }
+
+    const creds = JSON.parse(process.env.GA4_CREDENTIALS_JSON || '{}');
+    const projectId = creds.project_id;
+    if (projectId) {
+      try {
+        const accessToken = await getGoogleAccessToken(['https://www.googleapis.com/auth/datastore']);
+        const urlsArray = imageUrls.map(u => ({ stringValue: u }));
+        const patchUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/articles/${articleId}?updateMask.fieldPaths=image_urls`;
+        const body = { fields: { image_urls: { arrayValue: { values: urlsArray } } } };
+
+        const apiRes = await fetch(patchUrl, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        if (!apiRes.ok) {
+          console.error('Firestore image_urls update failed:', await apiRes.text());
+        } else {
+          console.log('Firestore image_urls updated successfully');
+        }
+      } catch (fsErr) {
+        console.error('Firestore update error:', fsErr.message);
+      }
+    }
+
+    const successCount = imageUrls.filter(u => u).length;
+    console.log(`Re-upload complete: ${successCount}/${prompts.length} images uploaded`);
+    res.json({ imageUrls, successCount, totalCount: prompts.length });
+
+  } catch (err) {
+    console.error('Re-upload Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
 // Health Check
 app.get('/health', (req, res) => {
   res.status(200).send('OK');

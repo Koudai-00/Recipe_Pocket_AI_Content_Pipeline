@@ -51,8 +51,12 @@ export const AGENTS = [
 export const IMAGE_MODELS = [
   { value: 'gemini-2.5-flash-image', label: 'Gemini 2.5 Flash Image (文字なし・高速)' },
   { value: 'gemini-3-pro-image-preview', label: 'Gemini 3 Pro (文字あり・インフォグラフィック)' },
+<<<<<<< HEAD
   { value: 'seedream-4.5', label: 'Seedream 4.5 (文字なし・高品質)' },
   { value: 'seedream-5.0-lite', label: 'Seedream 5.0 Lite (最新・高品質・高速)' }
+=======
+  { value: 'seedream-4.5', label: 'Seedream 4.5 (文字なし・高品質)' }
+>>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
 ];
 
 export const APP_CONTEXT = `
