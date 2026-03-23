@@ -11,7 +11,7 @@ import { IMAGE_MODELS } from './constants';
 import { analystAgent, marketerAgent, writerAgent, designerAgent, controllerAgent } from './services/geminiService';
 import { postToSupabase } from './services/supabaseService';
 import { uploadArticleImages, initSupabaseClient } from './services/storageService';
-import { saveToFirestore, updateFirestoreStatus, fetchArticles } from './services/firestoreService';
+import { saveToFirestore, updateFirestoreStatus, fetchArticles, deleteArticles } from './services/firestoreService';
 
 // Simple ID generator
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -26,6 +26,7 @@ export default function App() {
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [imageModel, setImageModel] = useState<string>(IMAGE_MODELS[0].value);
   const [arkApiKey, setArkApiKey] = useState<string>('');
+  const [serverSeedreamKey, setServerSeedreamKey] = useState<string>('');
   const [skipImages, setSkipImages] = useState<boolean>(false);
 
   // Connection Status State
@@ -37,7 +38,7 @@ export default function App() {
   // Global System Settings
   const [systemSettings, setSystemSettings] = useState<SystemSettings>({
     articlesPerRun: 1,
-    defaultImageModel: 'seedream-4.5',
+    defaultImageModel: 'seedream-5.0-lite',
     schedulerEnabled: true,
     cronSchedule: '0 9 * * *',
     supabase: {
@@ -65,6 +66,10 @@ export default function App() {
             authorId: data.supabaseAuthorId
           }
         }));
+        
+        if (data.seedreamApiKey) {
+          setServerSeedreamKey(data.seedreamApiKey);
+        }
 
         // Initialize Storage Client
         if (data.supabaseUrl && data.supabaseAnonKey) {
@@ -224,7 +229,8 @@ export default function App() {
 
         try {
           // Pass FINAL content to designer
-          design = await designerAgent(strategy.title, finalContentStr, imageModel, { seedream: arkApiKey }, systemSettings.agentPrompts?.designer);
+          const effectiveSeedreamKey = arkApiKey || serverSeedreamKey;
+          design = await designerAgent(strategy.title, finalContentStr, imageModel, { seedream: effectiveSeedreamKey }, systemSettings.agentPrompts?.designer);
           addLog(AgentType.DESIGNER, "画像を生成し、Storageへアップロード中...", 'info');
 
           imageUrls = await uploadArticleImages(newArticleId, design);
@@ -362,7 +368,8 @@ export default function App() {
         } else {
           setStatus(AgentType.DESIGNER);
           addLog(AgentType.DESIGNER, `画像生成中... (Model: ${imageModel})`, 'info');
-          design = await designerAgent(article.title || "", rawContent, imageModel, { seedream: arkApiKey }, systemSettings.agentPrompts?.designer);
+          const effectiveSeedreamKey = arkApiKey || serverSeedreamKey;
+          design = await designerAgent(article.title || "", rawContent, imageModel, { seedream: effectiveSeedreamKey }, systemSettings.agentPrompts?.designer);
 
           addLog(AgentType.DESIGNER, "画像をStorageへアップロード中...", 'info');
           imageUrls = await uploadArticleImages(article.id, design); // Existing ID
@@ -526,6 +533,15 @@ export default function App() {
               onView={(article) => {
                 setSelectedArticle(article);
                 setCurrentView('article_detail');
+              }}
+              onDelete={async (ids) => {
+                try {
+                  await deleteArticles(ids);
+                  setArticles(prev => prev.filter(a => !ids.includes(a.id)));
+                  addLog(AgentType.CONTROLLER, `${ids.length}件の記事を一覧から削除しました。`, 'info');
+                } catch (e: any) {
+                  addLog(AgentType.ERROR, `削除エラー: ${e.message}`, 'error');
+                }
               }}
             />
           )}

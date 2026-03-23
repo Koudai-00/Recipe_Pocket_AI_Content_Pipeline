@@ -34,7 +34,8 @@ const loadSecrets = async () => {
     { name: 'SUPABASE_SERVICE_ANON_KEY', env: 'SUPABASE_SERVICE_ANON_KEY' },
     { name: 'SUPABASE_AUTHOR_ID', env: 'SUPABASE_AUTHOR_ID' },
     { name: 'GA4_CREDENTIALS_JSON', env: 'GA4_CREDENTIALS_JSON' },
-    { name: 'GA4_PROPERTY_ID', env: 'GA4_PROPERTY_ID' }
+    { name: 'GA4_PROPERTY_ID', env: 'GA4_PROPERTY_ID' },
+    { name: 'SEEDREAM_API_KEY', env: 'SEEDREAM_API_KEY' }
   ];
 
   console.log(`Fetching secrets from Secret Manager for project: ${projectId}...`);
@@ -103,10 +104,10 @@ app.get('/api/config', (req, res) => {
   res.json({
     supabaseUrl: process.env.SUPABASE_URL || '',
     supabaseAnonKey: process.env.SUPABASE_SERVICE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '',
-    supabaseAuthorId: process.env.SUPABASE_AUTHOR_ID || '',
     ga4PropertyId: process.env.GA4_PROPERTY_ID ? 'SET' : '', // Just status check
     geminiApiKey: process.env.API_KEY ? 'SET' : '', // Just status check
-    ga4Credentials: process.env.GA4_CREDENTIALS_JSON ? 'SET' : '' // Just status check
+    ga4Credentials: process.env.GA4_CREDENTIALS_JSON ? 'SET' : '', // Just status check
+    seedreamApiKey: process.env.SEEDREAM_API_KEY || ''
   });
 });
 
@@ -388,7 +389,7 @@ app.get('/api/settings/general', async (req, res) => {
     // Map Firestore fields to JSON
     res.json({
       articlesPerRun: fields.articlesPerRun ? parseInt(fields.articlesPerRun.integerValue) : 1,
-      defaultImageModel: fields.defaultImageModel?.stringValue || 'seedream-4.5',
+      defaultImageModel: fields.defaultImageModel?.stringValue || 'seedream-5.0-lite',
       schedulerEnabled: fields.schedulerEnabled?.booleanValue || false,
       cronSchedule: fields.cronSchedule?.stringValue || '0 9 * * *'
     });

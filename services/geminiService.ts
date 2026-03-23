@@ -57,9 +57,13 @@ const generateGeminiImage = async (prompt: string, model: string): Promise<strin
 
 // Helper: Generate Image using Seedream API (Client side is fine if key is provided by user, 
 // OR we could move this to backend too, but sticking to existing logic for Seedream specific API key from UI)
-const generateSeedreamImage = async (prompt: string, apiKeyFromUI?: string): Promise<string | undefined> => {
-  // Note: process.env is removed. We rely on UI input for Seedream for now or backend proxy if we wanted.
-  // Keeping UI input logic for now as requested by previous implementation style.
+const generateSeedreamImage = async (prompt: string, model: string, apiKeyFromUI?: string): Promise<string | undefined> => {
+  // Determine actual model ID for BytePlus ARK
+  let arkModelId = "seedream-4-5-251128";
+  if (model === 'seedream-5.0-lite') {
+    arkModelId = "seedream-5-0-lite-260128";
+  }
+
   const arkKey = apiKeyFromUI;
 
   if (!arkKey) {
@@ -68,7 +72,7 @@ const generateSeedreamImage = async (prompt: string, apiKeyFromUI?: string): Pro
   }
 
   try {
-    console.log("Calling Seedream API...");
+    console.log(`Calling Seedream API with model: ${arkModelId}...`);
     const res = await fetch('https://ark.ap-southeast.bytepluses.com/api/v3/images/generations', {
       method: 'POST',
       headers: {
@@ -76,7 +80,7 @@ const generateSeedreamImage = async (prompt: string, apiKeyFromUI?: string): Pro
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "seedream-4-5-251128",
+        model: arkModelId,
         prompt: prompt,
         size: "2560x1440",
         sequential_image_generation: "disabled",
@@ -101,8 +105,8 @@ const generateSeedreamImage = async (prompt: string, apiKeyFromUI?: string): Pro
 };
 
 const generateImage = async (prompt: string, model: string, apiKeys?: { seedream?: string }): Promise<string | undefined> => {
-  if (model === 'seedream-4.5') {
-    return generateSeedreamImage(prompt, apiKeys?.seedream);
+  if (model.startsWith('seedream')) {
+    return generateSeedreamImage(prompt, model, apiKeys?.seedream);
   } else {
     return generateGeminiImage(prompt, model);
   }
@@ -196,11 +200,12 @@ export const writerAgent = async (strategy: StrategyResult, promptTemplate?: str
     ${rewriteContext.feedback}
     
     ＜現在の記事内容＞
-    ${rewriteContext.currentContent.substring(0, 2000)}...
+    ${rewriteContext.currentContent.substring(0, 10000)}...
     
     【指示】
     指摘事項を反映し、より高品質な記事にリライトしてください。
-    出力形式は前回同様、[SPLIT]マーカーを含むMarkdown形式です。
+    出力形式は前回同様、[SPLIT]マーカーを含むMarkdown形式のまま維持してください。
+    重要：記事を決して途中で終わらせず、指定された構成の最後まで必ず執筆を完了させてください。
     `;
   }
 

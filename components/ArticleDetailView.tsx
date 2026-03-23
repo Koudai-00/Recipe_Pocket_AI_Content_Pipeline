@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Article } from '../types';
 import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
 
 interface ArticleDetailViewProps {
     article: Article | null;
@@ -128,7 +129,7 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
                                 {/* Content Parts */}
                                 <div className="space-y-8">
                                     <div className="leading-relaxed font-serif text-lg">
-                                        <ReactMarkdown>{article.content?.body_p1 || "本文生成エラー"}</ReactMarkdown>
+                                        <ReactMarkdown rehypePlugins={[rehypeRaw]}>{article.content?.body_p1 || "本文生成エラー"}</ReactMarkdown>
                                     </div>
 
                                     {/* Section 1 Image */}
@@ -139,7 +140,7 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
                                     </div>
 
                                     <div className="leading-relaxed font-serif text-lg">
-                                        <ReactMarkdown>{article.content?.body_p2 || ""}</ReactMarkdown>
+                                        <ReactMarkdown rehypePlugins={[rehypeRaw]}>{article.content?.body_p2 || ""}</ReactMarkdown>
                                     </div>
 
                                     {/* Section 2 Image */}
@@ -150,7 +151,7 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
                                     </div>
 
                                     <div className="leading-relaxed font-serif text-lg">
-                                        <ReactMarkdown>{article.content?.body_p3 || ""}</ReactMarkdown>
+                                        <ReactMarkdown rehypePlugins={[rehypeRaw]}>{article.content?.body_p3 || ""}</ReactMarkdown>
                                     </div>
                                 </div>
                             </div>
