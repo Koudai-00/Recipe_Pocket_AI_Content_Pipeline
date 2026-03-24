@@ -38,22 +38,20 @@ export const saveToFirestore = async (article: Article): Promise<void> => {
         image_urls: article.image_urls,
         review_score: article.review?.score || 0,
         review_comment: article.review?.comments || "",
-<<<<<<< HEAD
-        review_history: article.review_history || [],
-=======
         review_improvement_points: JSON.stringify(article.review?.improvement_points || []),
         review_history: (article.review_history || []).map((rev: any) => ({
             ...rev,
             improvement_points: JSON.stringify(rev.improvement_points || [])
         })),
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
         rewrite_attempted: article.rewrite_attempted || false,
         design_prompts: {
             thumbnail: article.design?.thumbnail_prompt,
             section1: article.design?.section1_prompt,
             section2: article.design?.section2_prompt,
             section3: article.design?.section3_prompt
-        }
+        },
+        target_keywords: article.target_keywords || [],
+        target_phase: article.target_phase || ""
     };
 
     const documentBody = {
@@ -162,12 +160,6 @@ export const fetchArticles = async (): Promise<Article[]> => {
             review: {
                 status: 'REVIEW_REQUIRED',
                 score: parsed.review_score || 0,
-<<<<<<< HEAD
-                comments: parsed.review_comment || ""
-            },
-
-            review_history: parsed.review_history || [],
-=======
                 comments: parsed.review_comment || "",
                 improvement_points: (() => {
                     try { return JSON.parse(parsed.review_improvement_points || '[]'); } catch { return []; }
@@ -180,8 +172,9 @@ export const fetchArticles = async (): Promise<Article[]> => {
                     try { return JSON.parse(rev.improvement_points || '[]'); } catch { return []; }
                 })()
             })),
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
             rewrite_attempted: parsed.rewrite_attempted || false,
+            target_keywords: parsed.target_keywords || [],
+            target_phase: parsed.target_phase || "",
 
             // Fallback for Title
             title: parsed.content?.title || parsed.marketing_strategy?.title || "Untitled"

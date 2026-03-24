@@ -16,11 +16,7 @@ setupScheduler(app);
 
 const PORT = process.env.PORT || 8080;
 
-<<<<<<< HEAD
-app.use(express.json({ limit: '10mb' }));
-=======
 app.use(express.json({ limit: '20mb' }));
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
 app.use(cors());
 
 // --- Helper: Secret Manager ---
@@ -36,17 +32,11 @@ const loadSecrets = async () => {
     { name: 'GEMINI_API_KEY', env: 'API_KEY' },
     { name: 'SUPABASE_URL', env: 'SUPABASE_URL' },
     { name: 'SUPABASE_SERVICE_ANON_KEY', env: 'SUPABASE_SERVICE_ANON_KEY' },
-<<<<<<< HEAD
+    { name: 'SUPABASE_SERVICE_ROLE_KEY', env: 'SUPABASE_SERVICE_ROLE_KEY' },
     { name: 'SUPABASE_AUTHOR_ID', env: 'SUPABASE_AUTHOR_ID' },
     { name: 'GA4_CREDENTIALS_JSON', env: 'GA4_CREDENTIALS_JSON' },
     { name: 'GA4_PROPERTY_ID', env: 'GA4_PROPERTY_ID' },
     { name: 'SEEDREAM_API_KEY', env: 'SEEDREAM_API_KEY' }
-=======
-    { name: 'SUPABASE_SERVICE_ROLE_KEY', env: 'SUPABASE_SERVICE_ROLE_KEY' },
-    { name: 'SUPABASE_AUTHOR_ID', env: 'SUPABASE_AUTHOR_ID' },
-    { name: 'GA4_CREDENTIALS_JSON', env: 'GA4_CREDENTIALS_JSON' },
-    { name: 'GA4_PROPERTY_ID', env: 'GA4_PROPERTY_ID' }
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
   ];
 
   console.log(`Fetching secrets from Secret Manager for project: ${projectId}...`);
@@ -115,17 +105,11 @@ app.get('/api/config', (req, res) => {
   res.json({
     supabaseUrl: process.env.SUPABASE_URL || '',
     supabaseAnonKey: process.env.SUPABASE_SERVICE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '',
-<<<<<<< HEAD
+    supabaseAuthorId: process.env.SUPABASE_AUTHOR_ID || '',
     ga4PropertyId: process.env.GA4_PROPERTY_ID ? 'SET' : '', // Just status check
     geminiApiKey: process.env.API_KEY ? 'SET' : '', // Just status check
     ga4Credentials: process.env.GA4_CREDENTIALS_JSON ? 'SET' : '', // Just status check
     seedreamApiKey: process.env.SEEDREAM_API_KEY || ''
-=======
-    supabaseAuthorId: process.env.SUPABASE_AUTHOR_ID || '',
-    ga4PropertyId: process.env.GA4_PROPERTY_ID ? 'SET' : '', // Just status check
-    geminiApiKey: process.env.API_KEY ? 'SET' : '', // Just status check
-    ga4Credentials: process.env.GA4_CREDENTIALS_JSON ? 'SET' : '' // Just status check
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
   });
 });
 
@@ -407,11 +391,7 @@ app.get('/api/settings/general', async (req, res) => {
     // Map Firestore fields to JSON
     res.json({
       articlesPerRun: fields.articlesPerRun ? parseInt(fields.articlesPerRun.integerValue) : 1,
-<<<<<<< HEAD
       defaultImageModel: fields.defaultImageModel?.stringValue || 'seedream-5.0-lite',
-=======
-      defaultImageModel: fields.defaultImageModel?.stringValue || 'seedream-4.5',
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
       schedulerEnabled: fields.schedulerEnabled?.booleanValue || false,
       cronSchedule: fields.cronSchedule?.stringValue || '0 9 * * *'
     });
@@ -586,8 +566,6 @@ app.post('/api/firestore/monthly_reports', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-<<<<<<< HEAD
-=======
 // --- Helper: Generate URL-safe slug ---
 const generateSlug = (title) => {
   const timestamp = Date.now();
@@ -921,7 +899,6 @@ app.post('/api/storage/reupload', async (req, res) => {
   }
 });
 
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
 // Health Check
 app.get('/health', (req, res) => {
   res.status(200).send('OK');

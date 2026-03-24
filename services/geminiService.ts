@@ -57,7 +57,6 @@ const generateGeminiImage = async (prompt: string, model: string): Promise<strin
 
 // Helper: Generate Image using Seedream API (Client side is fine if key is provided by user, 
 // OR we could move this to backend too, but sticking to existing logic for Seedream specific API key from UI)
-<<<<<<< HEAD
 const generateSeedreamImage = async (prompt: string, model: string, apiKeyFromUI?: string): Promise<string | undefined> => {
   // Determine actual model ID for BytePlus ARK
   let arkModelId = "seedream-4-5-251128";
@@ -65,11 +64,6 @@ const generateSeedreamImage = async (prompt: string, model: string, apiKeyFromUI
     arkModelId = "seedream-5-0-lite-260128";
   }
 
-=======
-const generateSeedreamImage = async (prompt: string, apiKeyFromUI?: string): Promise<string | undefined> => {
-  // Note: process.env is removed. We rely on UI input for Seedream for now or backend proxy if we wanted.
-  // Keeping UI input logic for now as requested by previous implementation style.
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
   const arkKey = apiKeyFromUI;
 
   if (!arkKey) {
@@ -78,11 +72,7 @@ const generateSeedreamImage = async (prompt: string, apiKeyFromUI?: string): Pro
   }
 
   try {
-<<<<<<< HEAD
     console.log(`Calling Seedream API with model: ${arkModelId}...`);
-=======
-    console.log("Calling Seedream API...");
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
     const res = await fetch('https://ark.ap-southeast.bytepluses.com/api/v3/images/generations', {
       method: 'POST',
       headers: {
@@ -90,11 +80,7 @@ const generateSeedreamImage = async (prompt: string, apiKeyFromUI?: string): Pro
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-<<<<<<< HEAD
         model: arkModelId,
-=======
-        model: "seedream-4-5-251128",
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
         prompt: prompt,
         size: "2560x1440",
         sequential_image_generation: "disabled",
@@ -119,13 +105,8 @@ const generateSeedreamImage = async (prompt: string, apiKeyFromUI?: string): Pro
 };
 
 const generateImage = async (prompt: string, model: string, apiKeys?: { seedream?: string }): Promise<string | undefined> => {
-<<<<<<< HEAD
   if (model.startsWith('seedream')) {
     return generateSeedreamImage(prompt, model, apiKeys?.seedream);
-=======
-  if (model === 'seedream-4.5') {
-    return generateSeedreamImage(prompt, apiKeys?.seedream);
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
   } else {
     return generateGeminiImage(prompt, model);
   }
@@ -133,24 +114,65 @@ const generateImage = async (prompt: string, model: string, apiKeys?: { seedream
 
 // Default Prompts Configuration
 export const DEFAULT_PROMPTS = {
-  analyst: `あなたは「Recipe Pocket」のプロのデータアナリストです。
-    【分析対象データ】{{ANALYTICS_DATA}}
-    【過去のトピック】{{PAST_TOPICS}}
-    【アプリ情報】{{APP_CONTEXT}}
-    【指示】Google Analyticsデータを分析し、PV最大化のための記事トピックを決定してください。
-    出力: JSON形式 { "direction": "...", "topic": "..." }`,
+  analyst: `あなたは「Recipe Pocket」の戦略分析エージェントです。
+    【インプット】
+    - GA4データ（直近1ヶ月）: {{ANALYTICS_DATA}}
+    - 過去記事の履歴（タイトル・キーワード・フェーズ）: {{PAST_ARTICLES_META}}
+    - アプリの基本価値: {{APP_CONTEXT}}
 
-  marketer: `あなたは凄腕のマーケターです。
-    【分析データ】{{ANALYSIS_RESULT}}
-    【過去タイトル】{{PAST_TITLES}}
+    【指示】
+    1. 過去記事の履歴を分析し、まだターゲットにできていない「具体的な悩み（ロングテールキーワード）」や、不足しているターゲット層（顕在/準顕在/潜在）を特定してください。
+    2. PV最大化と新規ユーザー獲得のために、次に執筆すべき「トピック」と「狙うキーワード」を1つ決定してください。
+    3. 「現在のアプリ紹介」ではなく、「ユーザーの課題解決」を主眼に置いたテーマを選定してください。
+
+    【出力形式】
+    JSON形式で出力してください。
+    {
+      "direction": "分析に基づく戦略的方向性（なぜこのテーマを選んだか）",
+      "topic": "記事の主題（一言で）",
+      "target_keywords": ["キーワード1", "キーワード2"],
+      "target_phase": "顕在層 or 準顕在層 or 潜在層"
+    }`,
+
+  marketer: `あなたは凄腕のコンテンツマーケターです。分析結果に基づき、読者の共感とベネフィットを最大化する記事構成を立案してください。
+    【分析結果】{{ANALYSIS_RESULT}}
     【アプリ詳細】{{APP_CONTEXT}}
-    【指示】ターゲット（30代主婦）に刺さる記事戦略をJSONで出力してください。
-    出力: JSON形式 { "concept": "...", "function_intro": "...", "title": "...", "structure": [] }`,
 
-  writer: `あなたは「Recipe Pocket」の公式ブログを書く主婦ブロガーです。
-    【戦略】{{STRATEGY}}
-    【アプリ】{{APP_CONTEXT}}
-    【ルール】Markdown形式。[SPLIT]マーカーを2回入れて3分割すること。`,
+    【記事構成のルール】
+    1. タイトルは読者が思わずクリックしたくなる、ベネフィットが明確なものにしてください。
+    2. 「機能の紹介」ではなく、「その機能によって読者の悩みがどう解決し、どんな良い変化（心にゆとりができる、等）が起きるか」をストーリー仕立てで構成してください。
+    3. アプリの提案は自然な流れで行い、押し売り感を排除してください。
+
+    【出力形式】
+    JSON形式で出力してください。
+    {
+      "title": "読者を惹きつけるタイトル",
+      "concept": "この記事が読者に提供するメインベネフィット",
+      "target_keywords": ["分析結果から引き継いだキーワード"],
+      "target_phase": "分析結果から引き継いだフェーズ",
+      "structure": [
+        "H2見出し1: 読者の悩みへの共感",
+        "H2見出し2: 解決のヒントと具体的な方法",
+        "H2見出し3: 解決をより簡単にするツール（アプリ）の紹介",
+        "H2見出し4: まとめと次のステップ"
+      ],
+      "how_to_solve_with_app": "アプリをどのように解決策として提示するかの具体案"
+    }`,
+
+  writer: `あなたは「Recipe Pocket」の公式アンバサダーを務める、親しみやすい主婦ライターです。
+    【戦略・構成案】{{STRATEGY}}
+    【アプリの価値基準】{{APP_CONTEXT}}
+
+    【執筆ルール】
+    1. **HTML形式**で出力してください。Markdownは使用しないでください。
+    2. 文体は30代女性の等身大の言葉で、共感を重視してください（「〜ですよね」「〜してみて！」など）。
+    3. 構成案（structure）のH2見出しを必ず全て使用し、肉付けしてください。
+    4. 記事を3つのセクションに分け、セクションの区切りに [SPLIT] マーカーを挿入してください。
+    5. HTMLタグ（h2, p, ul, li, strong 等）を適切に使用してください。
+    6. 重要：記事を途中で終わらせず、最後まで完結させてください。
+
+    【出力形式】
+    HTML本文（[SPLIT]を2回含む）`,
 
   designer: `画像生成プロンプト作成。
     タイトル: {{TITLE}}
@@ -160,24 +182,14 @@ export const DEFAULT_PROMPTS = {
 
   controller: `あなたは編集長です。
     【戦略】{{STRATEGY}}
-<<<<<<< HEAD
-    【記事】{{CONTENT_SNIPPET}}
-=======
     【記事全文】{{CONTENT_FULL}}
     {{PREVIOUS_SCORE_INSTRUCTION}}
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
     
     【採点基準】
     - 0-100点で採点してください。
     - 80点以上: 合格 (APPROVED)
     - 80点未満: 要修正 (REVIEW_REQUIRED)
 
-<<<<<<< HEAD
-    出力JSON: { "status": "APPROVED"|"REVIEW_REQUIRED", "score": number, "comments": "..." }`
-};
-
-export const analystAgent = async (pastArticles: Article[] = [], promptTemplate?: string): Promise<AnalysisResult> => {
-=======
     【重要】statusがREVIEW_REQUIREDの場合、improvement_pointsに3〜5項目の具体的な改善指示を記載してください。
     各指摘は「[セクション名] 問題点の説明。具体的な改善方向」の形式にしてください。
     例: "[セクション1] 冒頭が情報的すぎる。読者の悩みに共感する一文から始め、感情的な導入にする"
@@ -186,18 +198,15 @@ export const analystAgent = async (pastArticles: Article[] = [], promptTemplate?
 };
 
 export const analystAgent = async (pastArticles: Article[] = [], promptTemplate?: string, articleRequest?: string): Promise<AnalysisResult> => {
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
   console.log("Fetching Analytics Data from Backend...");
   const analyticsData = await getRealAnalyticsData();
-  const pastTopics = pastArticles.map(a => a.topic || a.content.title).join(", ");
+  const pastMeta = pastArticles.map(a => `- ${a.content?.title || a.title} (Keywords: ${a.target_keywords?.join(",") || "未設定"}, Phase: ${a.target_phase || "未設定"})`).join("\n");
 
   let prompt = promptTemplate || DEFAULT_PROMPTS.analyst;
   prompt = prompt.replace('{{ANALYTICS_DATA}}', JSON.stringify(analyticsData))
-    .replace('{{PAST_TOPICS}}', pastTopics ? pastTopics : "なし")
+    .replace('{{PAST_ARTICLES_META}}', pastMeta ? pastMeta : "なし")
     .replace('{{APP_CONTEXT}}', APP_CONTEXT);
 
-<<<<<<< HEAD
-=======
   if (articleRequest && articleRequest.trim()) {
     prompt += `\n\n【特別指示】
     以下のユーザー要望を最優先で考慮し、この要望に沿った記事トピックを決定してください：
@@ -206,7 +215,6 @@ export const analystAgent = async (pastArticles: Article[] = [], promptTemplate?
     この要望を基に、データ分析結果とマッチングさせながら、最適なトピックを決定してください。`;
   }
 
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
   try {
     const response = await callGeminiApi(TEXT_MODEL, prompt, { responseMimeType: "application/json" });
     if (!response.candidates?.[0]?.content?.parts?.[0]?.text) throw new Error("No text returned");
@@ -216,11 +224,7 @@ export const analystAgent = async (pastArticles: Article[] = [], promptTemplate?
   }
 };
 
-<<<<<<< HEAD
-export const marketerAgent = async (analysis: AnalysisResult, pastArticles: Article[] = [], promptTemplate?: string): Promise<StrategyResult> => {
-=======
 export const marketerAgent = async (analysis: AnalysisResult, pastArticles: Article[] = [], promptTemplate?: string, articleRequest?: string): Promise<StrategyResult> => {
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
   const pastTitles = pastArticles.map(a => a.content?.title || a.title).join(", ");
 
   let prompt = promptTemplate || DEFAULT_PROMPTS.marketer;
@@ -228,8 +232,6 @@ export const marketerAgent = async (analysis: AnalysisResult, pastArticles: Arti
     .replace('{{PAST_TITLES}}', pastTitles)
     .replace('{{APP_CONTEXT}}', APP_CONTEXT);
 
-<<<<<<< HEAD
-=======
   if (articleRequest && articleRequest.trim()) {
     prompt += `\n\n【重要指示】
     ユーザーから以下のリクエストがあります。このリクエストを最優先でマーケティング戦略に反映してください：
@@ -238,22 +240,28 @@ export const marketerAgent = async (analysis: AnalysisResult, pastArticles: Arti
     上記リクエストに基づき、ターゲット層に響く魅力的なタイトルと構成を考えてください。`;
   }
 
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
   try {
     const response = await callGeminiApi(TEXT_MODEL, prompt, { responseMimeType: "application/json" });
     if (!response.candidates?.[0]?.content?.parts?.[0]?.text) throw new Error("No text returned");
-    return cleanJson(response.candidates[0].content.parts[0].text);
+    const result = cleanJson(response.candidates[0].content.parts[0].text);
+    // Ensure keywords and phase are carried over from analysis if somehow missing in marketer output
+    return {
+      ...result,
+      target_keywords: result.target_keywords || analysis.target_keywords,
+      target_phase: result.target_phase || analysis.target_phase
+    };
   } catch (e) {
-    return { concept: "エラー", function_intro: "", title: "戦略策定エラー", structure: [] };
+    return { 
+      concept: "エラー", 
+      function_intro: "", 
+      title: "戦略策定エラー", 
+      structure: [],
+      target_keywords: analysis.target_keywords,
+      target_phase: analysis.target_phase
+    };
   }
 };
 
-<<<<<<< HEAD
-export const writerAgent = async (strategy: StrategyResult, promptTemplate?: string, rewriteContext?: { feedback: string, currentContent: string }): Promise<string> => {
-  let prompt = promptTemplate || DEFAULT_PROMPTS.writer;
-
-  if (rewriteContext) {
-=======
 export const writerAgent = async (strategy: StrategyResult, promptTemplate?: string, rewriteContext?: { feedback: string, currentContent: string, improvement_points?: string[] }): Promise<string> => {
   let prompt = promptTemplate || DEFAULT_PROMPTS.writer;
 
@@ -262,8 +270,6 @@ export const writerAgent = async (strategy: StrategyResult, promptTemplate?: str
     const improvementSection = rewriteContext.improvement_points && rewriteContext.improvement_points.length > 0
       ? `\n    ＜具体的な改善指示（必ず全て対応してください）＞\n${rewriteContext.improvement_points.map((p, i) => `    ${i + 1}. ${p}`).join('\n')}`
       : '';
-
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
     prompt += `
     
     【修正依頼】
@@ -271,16 +277,6 @@ export const writerAgent = async (strategy: StrategyResult, promptTemplate?: str
     
     ＜レビュワーコメント＞
     ${rewriteContext.feedback}
-<<<<<<< HEAD
-    
-    ＜現在の記事内容＞
-    ${rewriteContext.currentContent.substring(0, 10000)}...
-    
-    【指示】
-    指摘事項を反映し、より高品質な記事にリライトしてください。
-    出力形式は前回同様、[SPLIT]マーカーを含むMarkdown形式のまま維持してください。
-    重要：記事を決して途中で終わらせず、指定された構成の最後まで必ず執筆を完了させてください。
-=======
     ${improvementSection}
     
     ＜現在の記事全文＞
@@ -294,7 +290,6 @@ export const writerAgent = async (strategy: StrategyResult, promptTemplate?: str
     - 全てのHTMLタグを正しく閉じてください。
     - 記事全体の長さ・ボリュームは維持してください（短縮しないこと）。
     - 出力形式は前回同様、[SPLIT]マーカーを含む形式です。
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
     `;
   }
 
@@ -345,12 +340,6 @@ export const designerAgent = async (title: string, content: string, imageModel: 
   return designData;
 };
 
-<<<<<<< HEAD
-export const controllerAgent = async (strategy: StrategyResult, content: string, promptTemplate?: string): Promise<ReviewResult> => {
-  let prompt = promptTemplate || DEFAULT_PROMPTS.controller;
-  prompt = prompt.replace('{{STRATEGY}}', JSON.stringify(strategy))
-    .replace('{{CONTENT_SNIPPET}}', content.substring(0, 1000) + '...');
-=======
 export const controllerAgent = async (strategy: StrategyResult, content: string, promptTemplate?: string, previousScore?: number): Promise<ReviewResult> => {
   let prompt = promptTemplate || DEFAULT_PROMPTS.controller;
 
@@ -364,17 +353,11 @@ export const controllerAgent = async (strategy: StrategyResult, content: string,
     .replace('{{CONTENT_FULL}}', contentForReview)
     .replace('{{CONTENT_SNIPPET}}', contentForReview)
     .replace('{{PREVIOUS_SCORE_INSTRUCTION}}', previousScoreInstruction);
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
 
   try {
     const response = await callGeminiApi(TEXT_MODEL, prompt, { responseMimeType: "application/json" });
     const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) throw new Error("No text");
-<<<<<<< HEAD
-    return cleanJson(text);
-  } catch (e) {
-    return { status: "REVIEW_REQUIRED", score: 0, comments: "Error" };
-=======
     let result = cleanJson(text);
     // Guard: if AI returns an array instead of an object, extract first element
     if (Array.isArray(result)) {
@@ -386,7 +369,6 @@ export const controllerAgent = async (strategy: StrategyResult, content: string,
     return result;
   } catch (e) {
     return { status: "REVIEW_REQUIRED", score: 0, comments: "Error", improvement_points: [] };
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
   }
 };
 
@@ -406,8 +388,6 @@ const MONTHLY_REPORT_PROMPT = `あなたは「Recipe Pocket」の最高戦略責
   "strategy_focus": "...",
   "action_items": ["...", "..."]
 }`;
-
-// ... (imports are same, modifying function)
 
 export const monthlyReportAgent = async (): Promise<{ report: MonthlyReport, analysis: MonthlyReportAnalysis }> => {
   try {

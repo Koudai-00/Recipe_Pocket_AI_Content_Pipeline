@@ -168,6 +168,8 @@ const ArticleList: React.FC<ArticleListProps> = ({ articles, onView, onDelete })
                 />
               </th>
               <th scope="col" className="px-6 py-3">ステータス</th>
+              <th scope="col" className="px-6 py-3">フェーズ</th>
+              <th scope="col" className="px-6 py-3">キーワード</th>
               <th scope="col" className="px-6 py-3">スコア</th>
               <th scope="col" className="px-6 py-3">トピック / タイトル</th>
               <th scope="col" className="px-6 py-3">作成日時</th>
@@ -203,6 +205,20 @@ const ArticleList: React.FC<ArticleListProps> = ({ articles, onView, onDelete })
                     `}>
                       {statusMap[article.status] || article.status}
                     </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                      {article.target_phase || '-'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-wrap gap-1 max-w-[200px]">
+                      {article.target_keywords?.map((kw, idx) => (
+                        <span key={idx} className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100">
+                          {kw}
+                        </span>
+                      )) || '-'}
+                    </div>
                   </td>
                   <td className="px-6 py-4 font-mono font-bold">
                     {article.review ? (

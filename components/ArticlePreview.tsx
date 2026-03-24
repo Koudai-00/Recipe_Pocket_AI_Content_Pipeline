@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
 import { Article } from '../types';
 import ReactMarkdown from 'react-markdown';
-<<<<<<< HEAD
 import rehypeRaw from 'rehype-raw';
-=======
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
 
 interface ArticlePreviewProps {
   article: Article | null;
@@ -112,11 +109,7 @@ const ArticlePreview: React.FC<ArticlePreviewProps> = ({ article, onClose, onPos
                   {/* Content Parts */}
                   <div className="space-y-8">
                     <div className="leading-relaxed font-serif text-lg">
-<<<<<<< HEAD
                       <ReactMarkdown rehypePlugins={[rehypeRaw]}>{article.content?.body_p1 || "本文生成エラー"}</ReactMarkdown>
-=======
-                      <ReactMarkdown>{article.content?.body_p1 || "本文生成エラー"}</ReactMarkdown>
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
                     </div>
 
                     {/* Section 1 Image */}
@@ -127,11 +120,7 @@ const ArticlePreview: React.FC<ArticlePreviewProps> = ({ article, onClose, onPos
                     </div>
 
                     <div className="leading-relaxed font-serif text-lg">
-<<<<<<< HEAD
                       <ReactMarkdown rehypePlugins={[rehypeRaw]}>{article.content?.body_p2 || ""}</ReactMarkdown>
-=======
-                      <ReactMarkdown>{article.content?.body_p2 || ""}</ReactMarkdown>
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
                     </div>
 
                     {/* Section 2 Image */}
@@ -142,19 +131,38 @@ const ArticlePreview: React.FC<ArticlePreviewProps> = ({ article, onClose, onPos
                     </div>
 
                     <div className="leading-relaxed font-serif text-lg">
-<<<<<<< HEAD
                       <ReactMarkdown rehypePlugins={[rehypeRaw]}>{article.content?.body_p3 || ""}</ReactMarkdown>
-=======
-                      <ReactMarkdown>{article.content?.body_p3 || ""}</ReactMarkdown>
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Sidebar Metadata */}
-              <div className="space-y-6">
-                {/* Generated Assets Gallery */}
+                {/* Sidebar Metadata */}
+                <div className="space-y-6">
+                  {/* Strategy Metadata */}
+                  <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">戦略メタデータ</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <span className="text-xs text-slate-400 block mb-1">ターゲット層 (フェーズ)</span>
+                        <span className="text-sm font-medium text-slate-700 bg-slate-100 px-2 py-1 rounded">
+                          {article.target_phase || '未設定'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-xs text-slate-400 block mb-1">想定検索キーワード</span>
+                        <div className="flex flex-wrap gap-2">
+                          {article.target_keywords?.map((kw, idx) => (
+                            <span key={idx} className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100">
+                              {kw}
+                            </span>
+                          )) || <span className="text-xs text-slate-400 italic">未設定</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Generated Assets Gallery */}
                 <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
                   <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">生成アセット一覧</h3>
                   <div className="space-y-4">

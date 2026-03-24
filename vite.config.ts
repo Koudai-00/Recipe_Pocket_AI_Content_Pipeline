@@ -5,14 +5,9 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   server: {
-<<<<<<< HEAD
-    host: 'localhost',
-    port: 3000,
-=======
     host: '0.0.0.0',
-    port: 5000,
+    port: 3000,
     allowedHosts: true,
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
     // Proxy API requests to the Express server during development
     proxy: {
       '/api': {
@@ -21,9 +16,4 @@ export default defineConfig({
       }
     }
   },
-  // SECURITY: Do NOT use `define: { 'process.env': ... }` as it exposes secrets to the browser.
-<<<<<<< HEAD
 });
-=======
-});
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba

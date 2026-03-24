@@ -22,6 +22,8 @@ export interface LogEntry {
 export interface AnalysisResult {
   direction: string;
   topic: string;
+  target_keywords?: string[];
+  target_phase?: string;
 }
 
 export interface StrategyResult {
@@ -29,6 +31,8 @@ export interface StrategyResult {
   function_intro: string;
   title: string;
   structure: string[];
+  target_keywords?: string[];
+  target_phase?: string;
 }
 
 export interface DesignPrompts {
@@ -47,10 +51,7 @@ export interface ReviewResult {
   status: 'APPROVED' | 'REVIEW_REQUIRED';
   score: number;
   comments: string;
-<<<<<<< HEAD
-=======
   improvement_points?: string[];
->>>>>>> 61a12e74eeae36440e87a039e8fa3adbcece66ba
 }
 
 // Updated to match Firestore Schema Requirements
@@ -82,6 +83,10 @@ export interface Article {
 
   // Internal/Transient (for UI display before upload)
   design?: DesignPrompts;
+
+  // New Strategy Fields
+  target_keywords?: string[];
+  target_phase?: string;
 
   // Legacy/Helper fields for UI compatibility
   title?: string;
