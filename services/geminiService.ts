@@ -151,33 +151,53 @@ export const DEFAULT_PROMPTS = {
       "target_keywords": ["分析結果から引き継いだキーワード"],
       "target_phase": "分析結果から引き継いだフェーズ",
       "structure": [
-        "H2見出し1: 読者の悩みへの共感",
-        "H2見出し2: 解決のヒントと具体的な方法",
-        "H2見出し3: 解決をより簡単にするツール（アプリ）の紹介",
-        "H2見出し4: まとめと次のステップ"
+        "H2見出し1: 冒頭の悩み共感（2〜3つの段落）",
+        "H2見出し2: 解決のヒントと具体的な日常シーンへの当てはめ（詳細に展開）",
+        "H3見出し2-1: 具体的な理由や背景の深掘り",
+        "H3見出し2-2: よくある失敗例や注意点",
+        "H2見出し3: 解決ツールの提示（アプリの機能紹介）",
+        "H3見出し3-1: フォルダ分けによる整理の魔法（具体的な使い方例）",
+        "H3見出し3-2: AI抽出機能が救う忙しい夕飯作り（利用シーンの描写）",
+        "H2見出し4: アプリを使った後の心境の変化（情緒的ベネフィット）",
+        "H2見出し5: まとめと今日からできる小さな一歩"
       ],
-      "how_to_solve_with_app": "アプリをどのように解決策として提示するかの具体案"
+      "how_to_solve_with_app": "アプリをどのように解決策として提示するかの具体案。3,000文字以上の長文を構成できるよう、各セクションの肉付け指示を含めてください。"
     }`,
 
-  writer: `あなたは「Recipe Pocket」の公式アンバサダーを務める、親しみやすい主婦ライターです。
-    【戦略・構成案】{{STRATEGY}}
-    【アプリの価値基準】{{APP_CONTEXT}}
-
-    【執筆ルール】
-    1. **HTML形式**で出力してください。Markdownは使用しないでください。
-    2. 文体は30代女性の等身大の言葉で、共感を重視してください（「〜ですよね」「〜してみて！」など）。
-    3. 構成案（structure）のH2見出しを必ず全て使用し、肉付けしてください。
-    4. 記事を3つのセクションに分け、セクションの区切りに [SPLIT] マーカーを挿入してください。
-    5. HTMLタグ（h2, p, ul, li, strong 等）を適切に使用してください。
-    6. 重要：記事を途中で終わらせず、最後まで完結させてください。
-
-    【出力形式】
-    HTML本文（[SPLIT]を2回含む）`,
+  writer: `あなたは「レシピポケット」の公式ブログを書く主婦ブロガーです。
+    【戦略】{{STRATEGY}}
+    【アプリ】{{APP_CONTEXT}}
+    【最重要：ボリューム指示】
+    - **日本語の純粋な文章のみ（HTMLタグ除く）で、最低3,000文字、目標5,000文字**の長文記事を執筆してください。
+    - 各見出し（H2, H3）の内容を極限まで肉付けし、読者が「これだけで悩みが解決する」と感じるほど詳細に書いてください。
+    - 筆者の実体験に基づいたようなエピソードや、具体的な日常の描写を多用して文字数を稼ぐのではなく、内容を深めてください。
+    【出力ルール】
+    - **HTML形式**で出力すること（Markdownは使わない）
+    - [SPLIT]マーカーを本文中に2回入れて3分割すること
+    - 見出しは以下のHTMLで統一すること：
+      - h2: <h2 style="border-left: 4px solid #FF6B35; padding-left: 12px; font-size: 1.4rem; font-weight: bold; margin: 2rem 0 1rem;">見出し</h2>
+      - h3: <h3 style="font-size: 1.1rem; font-weight: bold; color: #333; border-bottom: 2px dashed #FFB347; padding-bottom: 4px; margin: 1.5rem 0 0.75rem;">見出し</h3>
+    - 強調したいキーワードは: <mark style="background: linear-gradient(transparent 60%, #FFE066 60%); padding: 0 2px;">テキスト</mark>
+    - 重要な言葉は: <span style="color: #FF6B35; font-weight: bold;">テキスト</span>
+    - 箇条書きリストは: <ul style="list-style: none; padding-left: 0;">に<li style="padding: 6px 0 6px 24px; position: relative;">の前に<span style="position: absolute; left: 0; color: #FF6B35;">✔</span>
+    - 本文の段落は <p style="line-height: 1.9; margin-bottom: 1rem; color: #444;"> で統一`,
 
   designer: `画像生成プロンプト作成。
     タイトル: {{TITLE}}
     内容: {{CONTENT_SNIPPET}}
     {{STYLE_INSTRUCTION}}
+
+    【画像スタイル統一ルール（全画像共通）】
+    - カラーパレット: フルカラー・鮮やか配色。オレンジ (#FF6B35) をアクセントカラーとして使いつつ、青・緑・黄・ピンクなどカラフルな色も積極的に使用する。背景はホワイトまたは明るいグレー。
+    - タッチ: モダンでクリーンなフラットイラスト。線が細く洗練された現代的なデザイン。レトロ・アニメ・古臭い表現は避ける。
+    - 参考スタイル: Notion・Canva・Google のプロダクトイラストのような、2020年代のUIデザインに使われるスタイル。
+    - 登場人物: シンプルで親しみやすい現代的な日本人女性（30代）。細い輪郭線、表情豊か。
+    - 背景・構成: ミニマルで整理されたレイアウト。アイコンや矢印などUIパーツを組み合わせた情報整理感のあるビジュアル。
+    - 雰囲気: 明るく前向き・スマート・「便利！」「解決した！」という現代的な達成感。
+    - thumbnail_prompt: 記事テーマを一目で伝えるメインビジュアル（横長16:9）
+    - section1_prompt: 読者の悩み・問題提起をカラフルかつわかりやすく表現したイラスト
+    - section2_prompt: スマートフォンアプリ操作・解決策をモダンなUIと共に描いたイラスト
+    - section3_prompt: 問題解決後の明るい生活シーン。カラフルで温かみのある雰囲気。
     出力JSON: { "thumbnail_prompt": "...", "section1_prompt": "...", "section2_prompt": "...", "section3_prompt": "..." }`,
 
   controller: `あなたは編集長です。
@@ -187,6 +207,7 @@ export const DEFAULT_PROMPTS = {
     
     【採点基準】
     - 0-100点で採点してください。
+    - **ボリュームチェック**: 日本語の文章（HTMLタグ除く）が3,000文字に満たない場合は、無条件で75点以下（REVIEW_REQUIRED）としてください。
     - 80点以上: 合格 (APPROVED)
     - 80点未満: 要修正 (REVIEW_REQUIRED)
 
@@ -266,7 +287,7 @@ export const writerAgent = async (strategy: StrategyResult, promptTemplate?: str
   let prompt = promptTemplate || DEFAULT_PROMPTS.writer;
 
   if (rewriteContext) {
-    const contentToInclude = rewriteContext.currentContent.substring(0, 8000);
+    const contentToInclude = rewriteContext.currentContent.substring(0, 20000);
     const improvementSection = rewriteContext.improvement_points && rewriteContext.improvement_points.length > 0
       ? `\n    ＜具体的な改善指示（必ず全て対応してください）＞\n${rewriteContext.improvement_points.map((p, i) => `    ${i + 1}. ${p}`).join('\n')}`
       : '';

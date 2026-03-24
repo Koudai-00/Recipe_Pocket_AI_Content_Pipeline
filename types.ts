@@ -45,6 +45,7 @@ export interface DesignPrompts {
   section1_base64?: string;
   section2_base64?: string;
   section3_base64?: string;
+  image_model?: string;
 }
 
 export interface ReviewResult {

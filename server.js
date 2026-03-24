@@ -802,9 +802,9 @@ app.post('/api/storage/reupload', async (req, res) => {
       return res.status(400).json({ error: 'articleId and designPrompts are required' });
     }
 
-    const model = imageModel || 'seedream-4.5';
-    const isSeedream = model === 'seedream-4.5';
-    console.log(`Re-upload request for article: ${articleId}, model: ${model}, isSeedream: ${isSeedream}`);
+    const model = imageModel || 'seedream-5.0-lite';
+    const isSeedream = model.toLowerCase().includes('seedream');
+    console.log(`[Reupload] Article: ${articleId}, model: ${model}, isSeedream: ${isSeedream}`);
 
     const apiKey = process.env.API_KEY;
     if (!isSeedream && !apiKey) throw new Error('API_KEY not set on server');

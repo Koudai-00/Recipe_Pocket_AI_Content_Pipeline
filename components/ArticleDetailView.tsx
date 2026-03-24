@@ -2,24 +2,27 @@ import React, { useState } from 'react';
 import { Article } from '../types';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
+import { IMAGE_MODELS } from '../constants';
 
 interface ArticleDetailViewProps {
     article: Article | null;
     onBack: () => void;
     onPost?: (id: string) => Promise<void>;
-    onRewrite?: (article: Article) => Promise<void>;
-    onReuploadImages?: (article: Article) => Promise<void>;
+    onRewrite?: (article: Article, imageModel: string) => Promise<void>;
+    onReuploadImages?: (article: Article, imageModel: string) => Promise<void>;
+    onRevertStatus?: (article: Article) => Promise<void>;
 }
 
 type Tab = 'preview' | 'reports';
 type ReportTab = 'analysis' | 'strategy' | 'design' | 'review';
 
-const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, onPost, onRewrite, onReuploadImages }) => {
+const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, onPost, onRewrite, onReuploadImages, onRevertStatus }) => {
     const [activeTab, setActiveTab] = useState<Tab>('preview');
     const [activeReport, setActiveReport] = useState<ReportTab>('analysis');
     const [isPosting, setIsPosting] = useState(false);
     const [isRewriting, setIsRewriting] = useState(false);
     const [isReuploading, setIsReuploading] = useState(false);
+    const [selectedModel, setSelectedModel] = useState<string>(article?.design?.image_model || 'seedream-5.0-lite');
 
     if (!article) return <div className="p-8 text-center text-slate-500">記事が見つかりません</div>;
 
@@ -38,7 +41,7 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
         if (onRewrite && confirm('レビュー指摘に基づき記事を修正（リライト）しますか？\n※既存の本文は上書きされます。')) {
             setIsRewriting(true);
             try {
-                await onRewrite(article);
+                await onRewrite(article, selectedModel);
             } finally {
                 setIsRewriting(false);
             }
@@ -46,10 +49,10 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
     };
 
     const handleReuploadClick = async () => {
-        if (onReuploadImages && confirm('デザインプロンプトから画像を再生成し、Storageへアップロードしますか？')) {
+        if (onReuploadImages && confirm(`選択したモデル (${selectedModel}) で画像を再生成し、アップロードしますか？\n※既存の画像は上書きされます。`)) {
             setIsReuploading(true);
             try {
-                await onReuploadImages(article);
+                await onReuploadImages(article, selectedModel);
             } finally {
                 setIsReuploading(false);
             }
@@ -426,70 +429,80 @@ const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, onBack, 
             </div>
 
             {/* Footer Actions */}
-            <div className="px-6 py-4 bg-white border-t border-slate-200 flex justify-end gap-3 shrink-0 rounded-b-xl">
+            <div className="px-6 py-4 bg-white border-t border-slate-200 flex items-center justify-end gap-3 shrink-0 rounded-b-xl flex-wrap">
+                {/* Model Selector */}
+                <div className="flex items-center gap-2 mr-auto">
+                    <label className="text-xs font-bold text-slate-500 whitespace-nowrap"><i className="fas fa-microchip mr-1"></i>画像生成モデル:</label>
+                    <select
+                        value={selectedModel}
+                        onChange={(e) => setSelectedModel(e.target.value)}
+                        className="text-xs border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer font-medium text-slate-700 min-w-[200px]"
+                    >
+                        {IMAGE_MODELS.map(m => (
+                            <option key={m.value} value={m.value}>{m.label}</option>
+                        ))}
+                    </select>
+                </div>
+
                 {/* Re-upload Images Button */}
-                {allImagesEmpty && hasDesignPrompts && onReuploadImages && (
+                {hasDesignPrompts && onReuploadImages && (
                     <button
                         onClick={handleReuploadClick}
                         disabled={isReuploading || isPosting || isRewriting}
                         className={`px-4 py-2 rounded-lg text-amber-700 border border-amber-300 shadow-sm text-sm font-bold transition-colors flex items-center bg-amber-50 hover:bg-amber-100 ${isReuploading ? 'opacity-80 cursor-wait' : ''}`}
                     >
                         {isReuploading ? (
-                            <><i className="fas fa-sync fa-spin mr-2 text-amber-500"></i> 画像再生成中...</>
+                            <><i className="fas fa-sync fa-spin mr-2 text-amber-500"></i> 再生成中...</>
                         ) : (
                             <><i className="fas fa-redo mr-2 text-amber-500"></i> 画像を再生成</>
                         )}
                     </button>
                 )}
-                {/* Rewrite Button - Only for non-posted, reviewing/rejected or low score */}
+
+                {/* Rewrite Button */}
                 {article.status !== 'Posted' && (
                     <button
                         onClick={handleRewriteClick}
                         disabled={isRewriting || isPosting}
-                        className={`
-                        px-4 py-2 rounded-lg text-slate-700 border border-slate-300 shadow-sm text-sm font-bold transition-colors flex items-center
-                        bg-white hover:bg-slate-50
-                        ${isRewriting ? 'opacity-80 cursor-wait' : ''}
-                    `}
+                        className={`px-4 py-2 rounded-lg text-slate-700 border border-slate-300 shadow-sm text-sm font-bold transition-colors flex items-center bg-white hover:bg-slate-50 ${isRewriting ? 'opacity-80 cursor-wait' : ''}`}
                     >
                         {isRewriting ? (
-                            <>
-                                <i className="fas fa-sync fa-spin mr-2 text-indigo-500"></i> 修正中...
-                            </>
+                            <><i className="fas fa-sync fa-spin mr-2 text-indigo-500"></i> 修正中...</>
                         ) : (
-                            <>
-                                <i className="fas fa-magic mr-2 text-indigo-500"></i> AI修正 (リライト)
-                            </>
+                            <><i className="fas fa-magic mr-2 text-indigo-500"></i> AI修正 (リライト)</>
                         )}
                     </button>
                 )}
 
+                {/* Post Button */}
                 <button
                     onClick={handlePostClick}
                     disabled={article.status === 'Posted' || isPosting || isRewriting}
-                    className={`
-                    px-4 py-2 rounded-lg text-white shadow-sm text-sm font-medium transition-colors flex items-center
-                    ${article.status === 'Posted'
-                            ? 'bg-emerald-500 cursor-default'
-                            : 'bg-slate-900 hover:bg-slate-800'
-                        }
-                    ${isPosting || isRewriting ? 'opacity-80 cursor-wait' : ''}
-                `}
+                    className={`px-4 py-2 rounded-lg text-white shadow-sm text-sm font-medium transition-colors flex items-center ${article.status === 'Posted' ? 'bg-emerald-500 cursor-default' : 'bg-slate-900 hover:bg-slate-800'} ${isPosting || isRewriting ? 'opacity-80 cursor-wait' : ''}`}
                 >
                     {isPosting ? (
-                        <>
-                            <i className="fas fa-circle-notch fa-spin mr-2"></i> 送信中...
-                        </>
+                        <><i className="fas fa-circle-notch fa-spin mr-2"></i> 送信中...</>
                     ) : article.status === 'Posted' ? (
-                        <>
-                            <i className="fas fa-check mr-2"></i> 投稿済み
-                        </>
+                        <><i className="fas fa-check mr-2"></i> 投稿済み</>
                     ) : (
-                        <>
-                            <i className="fas fa-paper-plane mr-2"></i> CMSへ投稿
-                        </>
+                        <><i className="fas fa-paper-plane mr-2"></i> CMSへ投稿</>
                     )}
                 </button>
+
+                {/* Revert Status Button (Admin/Emergency fix) */}
+                {article.status === 'Posted' && onRevertStatus && (
+                    <button
+                        onClick={() => {
+                            if (window.confirm('ステータスを「承認済み」に戻しますか？（再投稿が可能になります）')) {
+                                onRevertStatus(article);
+                            }
+                        }}
+                        className="text-xs text-slate-400 hover:text-slate-600 underline ml-2 transition-colors"
+                        title="投稿済みステータスを解除して編集・再投稿を可能にします"
+                    >
+                        ステータスを戻す
+                    </button>
+                )}
             </div>
         </div>
     );

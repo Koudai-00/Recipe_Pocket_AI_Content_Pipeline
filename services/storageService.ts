@@ -56,7 +56,13 @@ export const uploadImageToStorage = async (imageData: string, path: string): Pro
       .upload(path, blob, { contentType: blob.type, upsert: true });
 
     if (error) {
-      console.error(`Client upload failed:`, error.message);
+      console.error(`Client upload failed for ${path}:`, error.message);
+      // Detailed diagnostics for Supabase Storage
+      if (error.message.includes('Bucket not found')) {
+        console.error('ERROR: Supabase Storage bucket "images" does not exist. Please create it in the Supabase Dashboard.');
+      } else if (error.message.includes('new row violates row-level security')) {
+        console.error('ERROR: RLS (Row Level Security) is blocking the upload. Ensure you have a public upload policy or use Service Role Key.');
+      }
       return "";
     }
 

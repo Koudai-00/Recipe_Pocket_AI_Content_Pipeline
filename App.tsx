@@ -96,21 +96,28 @@ export default function App() {
           fetch('/api/settings/prompts'),
           fetch('/api/settings/general')
         ]);
-
+    
         const promptsData = await promptsRes.json();
         const generalData = await generalRes.json();
-
+    
+        // Check if prompts need update (missing keywords instruction)
+        const needsUpdate = promptsData.analyst && !promptsData.analyst.includes('target_keywords');
+        if (needsUpdate) {
+          console.warn("Detected stale prompts in Firestore. New strategy metadata fields might be missing.");
+          addLog(AgentType.CONTROLLER, "注意: 設定画面でプロンプトをリセットするか、新しい指示（キーワード・フェーズ等）を追加してください。", 'warning');
+        }
+    
         setSystemSettings((prev: SystemSettings) => ({
           ...prev,
           ...(Object.keys(generalData).length > 0 ? generalData : {}),
           agentPrompts: promptsData.analyst ? promptsData : prev.agentPrompts
         }));
-
+    
         // Also update local state for imageModel if it was loaded
         if (generalData.defaultImageModel) {
           setImageModel(generalData.defaultImageModel);
         }
-
+    
         console.log("Loaded settings from Firestore");
       } catch (e) {
         console.error("Failed to fetch settings:", e);
@@ -386,12 +393,15 @@ export default function App() {
     }
   };
 
-  const handleRewrite = async (article: Article) => {
+  const handleRewrite = async (article: Article, targetModel?: string) => {
     if (status !== AgentType.IDLE && status !== AgentType.COMPLETED && status !== AgentType.ERROR) return;
+
+    // Determine target model
+    const activeModel = targetModel || imageModel;
 
     setStatus(AgentType.WRITER);
     setLogs([]);
-    addLog(AgentType.WRITER, `記事ID: ${article.id} のリライトを開始します。`, 'info');
+    addLog(AgentType.WRITER, `記事ID: ${article.id} のリライトを開始します (Model: ${activeModel})。`, 'info');
 
     try {
       const rewriteFeedback = article.review?.comments || "品質向上のため、全体的なブラッシュアップをお願いします。";
@@ -432,9 +442,9 @@ export default function App() {
           addLog(AgentType.DESIGNER, "初回生成時にスキップ設定されていたため、画像生成をスキップします。", 'warning');
         } else {
           setStatus(AgentType.DESIGNER);
-          addLog(AgentType.DESIGNER, `画像生成中... (Model: ${imageModel})`, 'info');
+          addLog(AgentType.DESIGNER, `画像生成中... (Model: ${activeModel})`, 'info');
           const effectiveSeedreamKey = arkApiKey || serverSeedreamKey;
-          design = await designerAgent(article.title || "", rawContent, imageModel, { seedream: effectiveSeedreamKey }, systemSettings.agentPrompts?.designer);
+          design = await designerAgent(article.title || "", rawContent, activeModel, { seedream: effectiveSeedreamKey }, systemSettings.agentPrompts?.designer);
 
           addLog(AgentType.DESIGNER, "画像をStorageへアップロード中...", 'info');
           imageUrls = await uploadArticleImages(article.id, design); // Existing ID
@@ -482,7 +492,10 @@ export default function App() {
         review,
         review_history: newHistory,
         rewrite_attempted: true,
-        design,
+        design: {
+          ...design,
+          image_model: activeModel
+        },
         image_urls: imageUrls,
         target_keywords: article.target_keywords,
         target_phase: article.target_phase,
@@ -503,26 +516,60 @@ export default function App() {
     }
   };
 
-  const handleReuploadImages = async (article: Article) => {
+  const handleReuploadImages = async (article: Article, targetModel?: string) => {
     if (!article.design) {
       addLog(AgentType.ERROR, 'デザインプロンプトが見つかりません。', 'error');
       return;
     }
 
-    addLog(AgentType.DESIGNER, `記事ID: ${article.id} の画像を再生成中...`, 'info');
+    // Use passed model or fallback to state
+    const activeModel = targetModel || imageModel;
+
+    addLog(AgentType.DESIGNER, `記事ID: ${article.id} の画像を再生成中 (モデル: ${activeModel})...`, 'info');
 
     try {
-      const imageUrls = await reuploadArticleImages(article.id, article.design, imageModel, arkApiKey);
+      const imageUrls = await reuploadArticleImages(article.id, article.design, activeModel, arkApiKey);
 
       const successCount = imageUrls.filter(url => url && url.length > 0).length;
       addLog(AgentType.DESIGNER, `画像再生成完了: ${successCount}/4 枚アップロード成功`, successCount > 0 ? 'success' : 'warning');
 
-      const updatedArticle: Article = { ...article, image_urls: imageUrls };
+      const updatedArticle: Article = { 
+        ...article, 
+        image_urls: imageUrls,
+        design: {
+          ...article.design,
+          image_model: activeModel
+        }
+      };
       setArticles(prev => prev.map(a => a.id === article.id ? updatedArticle : a));
       if (selectedArticle?.id === article.id) setSelectedArticle(updatedArticle);
+
+      // Save to Firestore to persist the new model and URLs
+      await saveToFirestore(updatedArticle);
+      addLog(AgentType.DESIGNER, "画像を永続化しました。", 'success');
     } catch (e: any) {
       console.error('Re-upload error:', e);
       addLog(AgentType.ERROR, `画像再生成エラー: ${e.message}`, 'error');
+    }
+  };
+
+  const handleRevertStatus = async (article: Article) => {
+    try {
+      addLog(AgentType.CONTROLLER, `記事ID: ${article.id} のステータスを「承認済み」に戻しています...`, 'info');
+      
+      const updatedArticle: Article = { ...article, status: 'Approved' };
+      
+      // Update Firestore
+      await updateFirestoreStatus(article.id, 'Approved');
+      
+      // Update local state
+      setArticles(prev => prev.map(a => a.id === article.id ? updatedArticle : a));
+      if (selectedArticle?.id === article.id) setSelectedArticle(updatedArticle);
+      
+      addLog(AgentType.CONTROLLER, "ステータスを戻しました。再投稿や画像の再生成が可能です。", 'success');
+    } catch (e: any) {
+      console.error('Revert status error:', e);
+      addLog(AgentType.ERROR, `ステータス変更エラー: ${e.message}`, 'error');
     }
   };
   return (
@@ -694,6 +741,7 @@ export default function App() {
               onPost={handlePostArticle}
               onRewrite={handleRewrite}
               onReuploadImages={handleReuploadImages}
+              onRevertStatus={handleRevertStatus}
             />
           )}
 

@@ -243,9 +243,21 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, onSave }) => {
                     <i className="fas fa-comment-dots mr-2 text-purple-500"></i>
                     プロンプト設定 (AIへの指示)
                 </h3>
-                <p className="text-sm text-slate-500 mb-4">
-                    各エージェントの振る舞いをカスタマイズできます。プレースホルダー (<code>{'{{...}}'}</code>) は実行時に自動置換されます。
-                </p>
+                <div className="flex justify-between items-center mb-4">
+                    <p className="text-sm text-slate-500">
+                        各エージェントの振る舞いをカスタマイズできます。プレースホルダー (<code>{'{{...}}'}</code>) は実行時に自動置換されます。
+                    </p>
+                    <button 
+                        onClick={() => {
+                            if (window.confirm('すべてのプロンプトを最新のシステム規定値にリセットしますか？現在編集中の内容は失われます。')) {
+                                setLocalSettings({ ...localSettings, agentPrompts: { ...DEFAULT_PROMPTS } });
+                            }
+                        }}
+                        className="text-xs font-bold text-red-500 hover:text-red-700 bg-red-50 px-3 py-1.5 rounded border border-red-100 transition-colors"
+                    >
+                        <i className="fas fa-undo-alt mr-2"></i>プロンプトを初期化
+                    </button>
+                </div>
 
                 <PromptEditor
                     prompts={localSettings.agentPrompts || DEFAULT_PROMPTS}
