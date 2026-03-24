@@ -56,14 +56,9 @@ export const uploadImageToStorage = async (imageData: string, path: string): Pro
       .upload(path, blob, { contentType: blob.type, upsert: true });
 
     if (error) {
-      console.error(`Client upload failed for ${path}:`, error.message);
-      // Detailed diagnostics for Supabase Storage
-      if (error.message.includes('Bucket not found')) {
-        console.error('ERROR: Supabase Storage bucket "images" does not exist. Please create it in the Supabase Dashboard.');
-      } else if (error.message.includes('new row violates row-level security')) {
-        console.error('ERROR: RLS (Row Level Security) is blocking the upload. Ensure you have a public upload policy or use Service Role Key.');
-      }
-      return "";
+      console.warn(`[StorageService] Client upload failed for ${path}: ${error.message}. Falling back to Backend Proxy...`);
+      // If client upload fails (e.g., RLS), try backend proxy before giving up
+      return await uploadViaBackendProxy(imageData, path);
     }
 
     const { data: publicUrlData } = supabaseInstance.storage
@@ -73,6 +68,25 @@ export const uploadImageToStorage = async (imageData: string, path: string): Pro
     return publicUrlData.publicUrl;
   } catch (e) {
     console.error(`[StorageService] Client Exception during upload of ${path}:`, e);
+    // Final fallback attempt
+    return await uploadViaBackendProxy(imageData, path);
+  }
+};
+
+// Helper to call backend upload proxy
+const uploadViaBackendProxy = async (imageData: string, path: string): Promise<string> => {
+  try {
+    console.log(`[StorageService] Attempting Backend Proxy upload for ${path}...`);
+    const response = await fetch('/api/storage/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageData, path })
+    });
+    if (!response.ok) throw new Error(await response.text());
+    const data = await response.json();
+    return data.publicUrl || "";
+  } catch (e) {
+    console.error(`[StorageService] Backend Proxy Upload reached final failure for ${path}:`, e);
     return "";
   }
 };

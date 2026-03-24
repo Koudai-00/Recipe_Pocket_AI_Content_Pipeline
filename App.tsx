@@ -528,7 +528,21 @@ export default function App() {
     addLog(AgentType.DESIGNER, `記事ID: ${article.id} の画像を再生成中 (モデル: ${activeModel})...`, 'info');
 
     try {
-      const imageUrls = await reuploadArticleImages(article.id, article.design, activeModel, arkApiKey);
+      // 1. Re-generate style-aware prompts for the selected model
+      addLog(AgentType.DESIGNER, "新しいモデルに最適化したプロンプトを再構築中...", 'info');
+      
+      const fullContent = `${article.content?.body_p1 || ''}\n\n${article.content?.body_p2 || ''}\n\n${article.content?.body_p3 || ''}`;
+      const newDesignPrompts = await designerAgent(
+        article.content?.title || article.title || 'Untitled', 
+        fullContent, 
+        activeModel, 
+        { seedream: arkApiKey },
+        systemSettings.agentPrompts?.designer
+      );
+
+      // 2. Upload images using the new prompts
+      addLog(AgentType.DESIGNER, "新プロンプトに基づき画像を生成・アップロード中...", 'info');
+      const imageUrls = await reuploadArticleImages(article.id, newDesignPrompts, activeModel, arkApiKey);
 
       const successCount = imageUrls.filter(url => url && url.length > 0).length;
       addLog(AgentType.DESIGNER, `画像再生成完了: ${successCount}/4 枚アップロード成功`, successCount > 0 ? 'success' : 'warning');
@@ -537,16 +551,16 @@ export default function App() {
         ...article, 
         image_urls: imageUrls,
         design: {
-          ...article.design,
+          ...newDesignPrompts, // Store the newly generated prompts
           image_model: activeModel
         }
       };
       setArticles(prev => prev.map(a => a.id === article.id ? updatedArticle : a));
       if (selectedArticle?.id === article.id) setSelectedArticle(updatedArticle);
 
-      // Save to Firestore to persist the new model and URLs
+      // Save to Firestore to persist the new model, prompts, and URLs
       await saveToFirestore(updatedArticle);
-      addLog(AgentType.DESIGNER, "画像を永続化しました。", 'success');
+      addLog(AgentType.DESIGNER, "プロンプトと画像を更新しました。", 'success');
     } catch (e: any) {
       console.error('Re-upload error:', e);
       addLog(AgentType.ERROR, `画像再生成エラー: ${e.message}`, 'error');

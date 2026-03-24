@@ -675,17 +675,25 @@ const uploadToSupabaseStorage = async (supabase, storagePath, buffer, contentTyp
       const publicUrl = urlData?.publicUrl || '';
 
       if (!publicUrl) {
-        console.error(`Storage upload succeeded but getPublicUrl returned empty for: ${storagePath}`);
-        lastError = new Error('Public URL generation failed after successful upload');
+        console.error(`[StorageHelper] SUCCESS upload but EMPTY publicUrl for: ${storagePath}`);
+        lastError = new Error('Public URL generation failed');
         continue;
       }
 
-      console.log(`Storage upload OK: ${storagePath} -> ${publicUrl}`);
+      console.log(`[StorageHelper] SUCCESS: ${storagePath} -> ${publicUrl}`);
       return publicUrl;
     }
 
-    console.error(`Storage upload attempt ${attempt} failed for ${storagePath}: ${error.message}`);
-    lastError = error;
+    // Detailed error logging for backend storage issues
+    let detail = error.message;
+    if (detail.includes('new row violates row-level security')) {
+      detail = "RLS Policy Error. Ensure the 'images' bucket has a PUBLIC upload policy (even with service role key, sometimes RLS is tricky if not configured as 'public').";
+    } else if (detail.includes('Bucket not found')) {
+      detail = "Bucket 'images' not found. Please create a bucket named 'images' in Supabase Dashboard.";
+    }
+    
+    console.error(`[StorageHelper] Attempt ${attempt} FAILED for ${storagePath}: ${detail}`);
+    lastError = new Error(detail);
   }
   throw new Error(`Supabase Storage Error after ${maxRetries + 1} attempts: ${lastError?.message}`);
 };
@@ -920,10 +928,12 @@ app.listen(PORT, '0.0.0.0', () => {
 // 2. Load secrets in background
 loadSecrets().then(() => {
   console.log("Secrets loaded successfully.");
-  console.log("--- Environment Variables Check ---");
+  console.log('--- Environment Variables Check ---');
   console.log(`API_KEY: ${process.env.API_KEY ? 'Set (Length: ' + process.env.API_KEY.length + ')' : 'MISSING'}`);
+  console.log(`SUPABASE_URL: ${process.env.SUPABASE_URL ? 'Set' : 'MISSING'}`);
+  console.log(`SUPABASE_SERVICE_ROLE_KEY: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Set (Service Role)' : (process.env.SUPABASE_SERVICE_ANON_KEY ? 'Set (Anon Only)' : 'MISSING')}`);
   console.log(`GA4_PROPERTY_ID: ${process.env.GA4_PROPERTY_ID ? 'Set' : 'MISSING'}`);
-  console.log("-----------------------------------");
+  console.log('-----------------------------------');
 }).catch(err => {
   console.error("WARNING: Failed to load secrets from Secret Manager:", err);
   // Do not exit, as the app might still work with .env or partial secrets
