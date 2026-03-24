@@ -264,10 +264,16 @@ export default function App() {
             addLog(AgentType.DESIGNER, "画像を生成し、Storageへアップロード中...", 'info');
 
             imageUrls = await uploadArticleImages(newArticleId, design);
-            addLog(AgentType.DESIGNER, "画像処理完了", 'success');
+            
+            const successCount = imageUrls.filter(url => url && url.length > 0).length;
+            if (successCount === 0) {
+              addLog(AgentType.DESIGNER, "画像アップロード失敗（すべてのURLが空です）。Supabaseの設定やモデル名を確認してください。", 'error');
+            } else {
+              addLog(AgentType.DESIGNER, `画像処理完了: ${successCount}/4 枚のアップロードに成功しました。`, 'success');
+            }
           } catch (e: any) {
             console.error("Image Gen Error", e);
-            addLog(AgentType.DESIGNER, `画像生成エラー: ${e.message} (スキップします)`, 'error');
+            addLog(AgentType.DESIGNER, `画像生成エラー: ${e.message}`, 'error');
           }
         } else {
           if (!isApproved) {

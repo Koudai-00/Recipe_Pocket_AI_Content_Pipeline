@@ -180,7 +180,17 @@ export const DEFAULT_PROMPTS = {
     - 強調したいキーワードは: <mark style="background: linear-gradient(transparent 60%, #FFE066 60%); padding: 0 2px;">テキスト</mark>
     - 重要な言葉は: <span style="color: #FF6B35; font-weight: bold;">テキスト</span>
     - 箇条書きリストは: <ul style="list-style: none; padding-left: 0;">に<li style="padding: 6px 0 6px 24px; position: relative;">の前に<span style="position: absolute; left: 0; color: #FF6B35;">✔</span>
-    - 本文の段落は <p style="line-height: 1.9; margin-bottom: 1rem; color: #444;"> で統一`,
+    - 本文の段落は <p style="line-height: 1.9; margin-bottom: 1rem; color: #444;"> で統一
+    【アプリダウンロードボタンの設置（推奨）】
+    - 記事の内容（アプリの機能紹介など）に合わせて、**ダウンロードへの誘導が自然だと判断される場合のみ**、以下のHTML形式のボタンを設置してください。
+    - 文末に必ず置く必要はありません。アプリの利便性が具体的に語られた直後など、最も効果的で自然な場所に配置してください。
+    - **設置する場合は、必ず以下のHTML構造（バッジ画像とリンクのセット）をそのまま使用してください。**
+
+    <div style="text-align: center; margin: 2rem 0;">
+      <a href="https://recipepocket.jp/download" target="_blank" rel="noopener noreferrer" style="display: inline-block; background: linear-gradient(135deg, #FF6B35 0%, #FF8E53 100%); color: #ffffff; font-weight: bold; font-size: 1.1rem; padding: 16px 36px; border-radius: 50px; text-decoration: none; box-shadow: 0 4px 15px rgba(255, 107, 53, 0.4);">
+        📱 アプリを無料でダウンロード
+      </a>
+    </div>`,
 
   designer: `画像生成プロンプト作成。
     タイトル: {{TITLE}}
@@ -345,18 +355,35 @@ export const designerAgent = async (title: string, content: string, imageModel: 
     console.error("Designer Prompt Error:", e);
   }
 
+  // Image generation
   try {
+    const generateAndLog = async (key: string, prompt: string) => {
+      try {
+        console.log(`[DesignerAgent] Generating ${key}...`);
+        const result = await generateImage(prompt, imageModel, apiKeys);
+        if (!result) console.warn(`[DesignerAgent] ${key} generation returned empty result.`);
+        return result;
+      } catch (err) {
+        console.error(`[DesignerAgent] ${key} generation failed:`, err);
+        return undefined;
+      }
+    };
+
     const [thumb, s1, s2, s3] = await Promise.all([
-      designData.thumbnail_prompt ? generateImage(designData.thumbnail_prompt, imageModel, apiKeys) : undefined,
-      designData.section1_prompt ? generateImage(designData.section1_prompt, imageModel, apiKeys) : undefined,
-      designData.section2_prompt ? generateImage(designData.section2_prompt, imageModel, apiKeys) : undefined,
-      designData.section3_prompt ? generateImage(designData.section3_prompt, imageModel, apiKeys) : undefined,
+      designData.thumbnail_prompt ? generateAndLog('thumbnail', designData.thumbnail_prompt) : undefined,
+      designData.section1_prompt ? generateAndLog('section1', designData.section1_prompt) : undefined,
+      designData.section2_prompt ? generateAndLog('section2', designData.section2_prompt) : undefined,
+      designData.section3_prompt ? generateAndLog('section3', designData.section3_prompt) : undefined,
     ]);
+
     designData.thumbnail_base64 = thumb;
     designData.section1_base64 = s1;
     designData.section2_base64 = s2;
     designData.section3_base64 = s3;
-  } catch (e) { console.error("Image Gen Error:", e); }
+    designData.image_model = imageModel;
+  } catch (e) {
+    console.error("Critical Image Gen Error in DesignerAgent:", e);
+  }
 
   return designData;
 };
