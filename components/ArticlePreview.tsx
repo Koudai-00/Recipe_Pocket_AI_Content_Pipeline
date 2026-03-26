@@ -286,6 +286,23 @@ const ArticlePreview: React.FC<ArticlePreviewProps> = ({ article, onClose, onPos
                         <h4 className="text-sm font-bold text-slate-800 mb-2">Section 1 Prompt</h4>
                         <p className="text-xs text-slate-600 font-mono bg-slate-50 p-2 rounded border border-slate-100">{article.design.section1_prompt}</p>
                       </div>
+
+                      {/* Image Generation Log for OpenRouter Fallback */}
+                      {article.design.image_model && (
+                        <div className="bg-slate-900 p-5 rounded-lg border border-slate-700 shadow-inner">
+                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center">
+                            <i className="fas fa-history mr-2"></i>画像生成実行ログ (OpenRouter Fallback)
+                          </h4>
+                          <div className="space-y-2 font-mono text-[11px]">
+                            {article.design.image_model.split('\n').map((line, i) => (
+                              <div key={i} className={`flex items-center gap-2 ${line.includes('エラー') ? 'text-red-400' : 'text-emerald-400 font-bold'}`}>
+                                <i className={`fas ${line.includes('エラー') ? 'fa-times' : 'fa-check-circle'} w-4 text-center`}></i>
+                                <span>{line}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Raw JSON Output</h4>

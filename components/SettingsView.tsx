@@ -6,12 +6,14 @@ import { DEFAULT_PROMPTS } from '../services/geminiService';
 interface SettingsViewProps {
     settings: SystemSettings;
     onSave: (newSettings: SystemSettings) => void;
+    articles: any[];
 }
 
-const SettingsView: React.FC<SettingsViewProps> = ({ settings, onSave }) => {
+const SettingsView: React.FC<SettingsViewProps> = ({ settings, onSave, articles }) => {
     const [localSettings, setLocalSettings] = useState<SystemSettings>(settings);
     const [isSaving, setIsSaving] = useState(false);
     const [remoteConfig, setRemoteConfig] = useState<Record<string, string>>({});
+    const [lastOpenRouterLog, setLastOpenRouterLog] = useState<string | null>(null);
 
     // Sync with parent prop changes
     useEffect(() => {
@@ -25,6 +27,20 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, onSave }) => {
             .then(data => setRemoteConfig(data))
             .catch(err => console.error("Failed to fetch config status:", err));
     }, []);
+
+    // Extract Last OpenRouter Result from Articles prop
+    useEffect(() => {
+        if (!articles || articles.length === 0) return;
+        
+        // Find most recent article with OpenRouter auto log
+        const latestWithLog = [...articles]
+            .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            .find((a: any) => a.design?.image_model && (a.design.image_model.includes('Flux') || a.design.image_model.includes('seedream')));
+        
+        if (latestWithLog) {
+            setLastOpenRouterLog(latestWithLog.design.image_model);
+        }
+    }, [articles]);
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -233,6 +249,45 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, onSave }) => {
                                 <option key={m.value} value={m.value}>{m.label}</option>
                             ))}
                         </select>
+                        
+                        <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center">
+                                <i className="fas fa-sitemap mr-2"></i>自動フォールバック順序 (OpenRouter選択時)
+                            </h4>
+                            <p className="text-[10px] text-slate-500 mb-3">
+                                「OpenRouter (自動フォールバック)」を使用して画像生成を行う際、上から順に生成を試みます。
+                            </p>
+                            <div className="space-y-1 mb-4">
+                                {[
+                                    'bytedance-seed/seedream-4.5',
+                                    'black-forest-labs/flux.2-max',
+                                    'black-forest-labs/flux.2-pro',
+                                    'black-forest-labs/flux.2-klein-4b',
+                                    'Gemini 2.5 Flash Image'
+                                ].map((m, i) => (
+                                    <div key={i} className="flex items-center text-[11px] text-slate-600">
+                                        <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center mr-2 text-[10px] font-bold">{i + 1}</span>
+                                        {m}
+                                    </div>
+                                ))}
+                            </div>
+                            
+                            {lastOpenRouterLog && (
+                                <div className="pt-3 border-t border-slate-200">
+                                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center">
+                                        <i className="fas fa-history mr-2"></i>前回の実行結果 (最新のログより)
+                                    </h4>
+                                    <div className="space-y-1">
+                                        {lastOpenRouterLog.split('\n').map((line, i) => (
+                                            <div key={i} className={`text-[11px] flex items-center gap-2 ${line.includes('エラー') ? 'text-red-500' : 'text-emerald-600 font-bold'}`}>
+                                                <i className={`fas ${line.includes('エラー') ? 'fa-times' : 'fa-check'} w-3 text-center`}></i>
+                                                {line}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

@@ -766,7 +766,7 @@ export default function App() {
           )}
 
           {currentView === 'analytics' && <MonthlyReportView addLog={addLog} />}
-          {currentView === 'settings' && <SettingsView settings={systemSettings} onSave={setSystemSettings} />}
+          {currentView === 'settings' && <SettingsView settings={systemSettings} onSave={setSystemSettings} articles={articles} />}
         </div>
       </main>
     </div>

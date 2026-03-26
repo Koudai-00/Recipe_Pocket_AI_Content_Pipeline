@@ -104,9 +104,32 @@ const generateSeedreamImage = async (prompt: string, model: string, apiKeyFromUI
   }
 };
 
+const generateOpenRouterImage = async (prompt: string, model: string): Promise<string | undefined> => {
+  try {
+    console.log(`Calling OpenRouter Proxy with model: ${model}...`);
+    const res = await fetch('/api/openrouter/generate-image', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ model, prompt })
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    if (data.imageUrl) return data.imageUrl;
+    throw new Error("No image URL in response");
+  } catch (e) {
+    console.error(`OpenRouter Error (${model}):`, e);
+    return undefined;
+  }
+};
+
 const generateImage = async (prompt: string, model: string, apiKeys?: { seedream?: string }): Promise<string | undefined> => {
   if (model.startsWith('seedream')) {
     return generateSeedreamImage(prompt, model, apiKeys?.seedream);
+  } else if (model.includes('/')) {
+    return generateOpenRouterImage(prompt, model);
   } else {
     return generateGeminiImage(prompt, model);
   }
@@ -360,6 +383,34 @@ export const designerAgent = async (title: string, content: string, imageModel: 
     const generateAndLog = async (key: string, prompt: string) => {
       try {
         console.log(`[DesignerAgent] Generating ${key}...`);
+
+        if (imageModel === 'openrouter-auto') {
+          const fallbackModels = [
+            'bytedance-seed/seedream-4.5',
+            'black-forest-labs/flux.2-max',
+            'black-forest-labs/flux.2-pro',
+            'black-forest-labs/flux.2-klein-4b'
+          ];
+          
+          let logMessages: string[] = [];
+          for (const model of fallbackModels) {
+            const result = await generateImage(prompt, model, apiKeys);
+            if (result) {
+              logMessages.push(`${model}（このモデルにて生成）`);
+              designData.image_model = logMessages.join('\n');
+              return result;
+            } else {
+              logMessages.push(`${model}（エラー）`);
+            }
+          }
+          
+          console.warn(`[DesignerAgent] ${key}: All OpenRouter models failed. Falling back to Gemini.`);
+          const result = await generateImage(prompt, 'gemini-2.5-flash-image');
+          logMessages.push(`Gemini 2.5 Flash Image（このモデルにて生成）`);
+          designData.image_model = logMessages.join('\n');
+          return result;
+        }
+
         const result = await generateImage(prompt, imageModel, apiKeys);
         if (!result) console.warn(`[DesignerAgent] ${key} generation returned empty result.`);
         return result;
@@ -380,7 +431,9 @@ export const designerAgent = async (title: string, content: string, imageModel: 
     designData.section1_base64 = s1;
     designData.section2_base64 = s2;
     designData.section3_base64 = s3;
-    designData.image_model = imageModel;
+    if (imageModel !== 'openrouter-auto' || (!designData.image_model)) {
+        designData.image_model = imageModel;
+    }
   } catch (e) {
     console.error("Critical Image Gen Error in DesignerAgent:", e);
   }

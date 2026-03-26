@@ -36,7 +36,8 @@ const loadSecrets = async () => {
     { name: 'SUPABASE_AUTHOR_ID', env: 'SUPABASE_AUTHOR_ID' },
     { name: 'GA4_CREDENTIALS_JSON', env: 'GA4_CREDENTIALS_JSON' },
     { name: 'GA4_PROPERTY_ID', env: 'GA4_PROPERTY_ID' },
-    { name: 'SEEDREAM_API_KEY', env: 'SEEDREAM_API_KEY' }
+    { name: 'SEEDREAM_API_KEY', env: 'SEEDREAM_API_KEY' },
+    { name: 'OPENROUTER_API', env: 'OPENROUTER_API' }
   ];
 
   console.log(`Fetching secrets from Secret Manager for project: ${projectId}...`);
@@ -109,7 +110,8 @@ app.get('/api/config', (req, res) => {
     ga4PropertyId: process.env.GA4_PROPERTY_ID ? 'SET' : '', // Just status check
     geminiApiKey: process.env.API_KEY ? 'SET' : '', // Just status check
     ga4Credentials: process.env.GA4_CREDENTIALS_JSON ? 'SET' : '', // Just status check
-    seedreamApiKey: process.env.SEEDREAM_API_KEY || ''
+    seedreamApiKey: process.env.SEEDREAM_API_KEY || '',
+    openrouterApiKey: process.env.OPENROUTER_API ? 'SET' : ''
   });
 });
 
@@ -130,6 +132,57 @@ app.post('/api/gemini/generate', async (req, res) => {
     res.json(response);
   } catch (error) {
     console.error("Gemini Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- API: OpenRouter Proxy ---
+app.post('/api/openrouter/generate-image', async (req, res) => {
+  try {
+    const { model, prompt } = req.body;
+    if (!process.env.OPENROUTER_API) throw new Error("OPENROUTER_API not set on server");
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENROUTER_API}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenRouter API responded with status ${response.status}: ${await response.text()}`);
+    }
+
+    const data = await response.json();
+    
+    // OpenRouter image generation structure might be in choices[0].message.images or content
+    let imageUrl = '';
+    
+    if (data.choices && data.choices[0] && data.choices[0].message) {
+      const message = data.choices[0].message;
+      if (message.images && message.images.length > 0 && message.images[0].image_url) {
+         imageUrl = message.images[0].image_url.url;
+      } else if (typeof message.content === 'string' && message.content.startsWith('http')) {
+         // Some models might just return the URL in the text content
+         imageUrl = message.content;
+      } else if (typeof message.content === 'string' && message.content.startsWith('data:image')) {
+         imageUrl = message.content;
+      }
+    }
+    
+    if (!imageUrl) {
+       console.error("Unexpected OpenRouter response:", JSON.stringify(data, null, 2));
+       throw new Error("Could not extract image URL/Data from OpenRouter response");
+    }
+
+    res.json({ imageUrl });
+  } catch (error) {
+    console.error("OpenRouter Error:", error);
     res.status(500).json({ error: error.message });
   }
 });
