@@ -167,8 +167,6 @@ export default function App() {
     setLogs([]);
     addLog(AgentType.ANALYST, `パイプラインを開始します。${articleCount}件の記事を生成します...`, 'info');
 
-    const generatedArticles: Article[] = [];
-
     try {
       for (let i = 0; i < articleCount; i++) {
         const articleRequest = articleRequests[i]?.trim();
@@ -202,7 +200,7 @@ export default function App() {
         // 3. Writer
         setStatus(AgentType.WRITER);
         addLog(AgentType.WRITER, "記事執筆中...", 'info');
-        const rawContent = await writerAgent(strategy, systemSettings.agentPrompts?.writer);
+        const rawContent = await writerAgent(strategy, systemSettings.agentPrompts?.writer, undefined, articleRequest);
 
         const parts = rawContent.split('[SPLIT]');
         const body_p1 = parts[0] || "";
@@ -339,14 +337,14 @@ export default function App() {
           }
         }
 
-        generatedArticles.push(newArticle);
+        // 記事をUI一覧に即時反映（ブラウザを閉じても保存済みの記事が失われないように）
+        setArticles(prev => [newArticle, ...prev]);
 
         if (articleCount > 1) {
-          addLog(AgentType.PUBLISHER, `記事 ${i + 1}/${articleCount} 完了`, 'success');
+          addLog(AgentType.PUBLISHER, `記事 ${i + 1}/${articleCount} 完了・保存済み`, 'success');
         }
       }
 
-      setArticles(prev => [...generatedArticles, ...prev]);
       setStatus(AgentType.COMPLETED);
       addLog(AgentType.PUBLISHER, `全${articleCount}件の記事生成が完了しました`, 'success');
 
@@ -750,6 +748,27 @@ export default function App() {
                 } catch (e: any) {
                   addLog(AgentType.ERROR, `削除エラー: ${e.message}`, 'error');
                 }
+              }}
+              onBulkPost={async (ids) => {
+                addLog(AgentType.PUBLISHER, `${ids.length}件の記事を一括投稿開始...`, 'info');
+                let successCount = 0;
+                let failCount = 0;
+
+                for (const id of ids) {
+                  try {
+                    await handlePostArticle(id);
+                    successCount++;
+                  } catch (e: any) {
+                    failCount++;
+                    addLog(AgentType.ERROR, `投稿失敗 (ID: ${id}): ${e.message}`, 'error');
+                  }
+                }
+
+                addLog(
+                  AgentType.PUBLISHER,
+                  `一括投稿完了: 成功 ${successCount}件 / 失敗 ${failCount}件`,
+                  failCount === 0 ? 'success' : 'warning'
+                );
               }}
             />
           )}

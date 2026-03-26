@@ -104,7 +104,7 @@ const generateSeedreamImage = async (prompt: string, model: string, apiKeyFromUI
   }
 };
 
-const generateOpenRouterImage = async (prompt: string, model: string): Promise<string | undefined> => {
+const generateOpenRouterImage = async (prompt: string, model: string): Promise<{ url?: string; error?: string }> => {
   try {
     console.log(`Calling OpenRouter Proxy with model: ${model}...`);
     const res = await fetch('/api/openrouter/generate-image', {
@@ -115,13 +115,20 @@ const generateOpenRouterImage = async (prompt: string, model: string): Promise<s
       body: JSON.stringify({ model, prompt })
     });
 
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) {
+      const errText = await res.text();
+      let errMsg = errText;
+      try { errMsg = JSON.parse(errText).error || errText; } catch {}
+      console.error(`OpenRouter Error (${model}):`, errMsg);
+      return { error: errMsg.substring(0, 100) };
+    }
     const data = await res.json();
-    if (data.imageUrl) return data.imageUrl;
-    throw new Error("No image URL in response");
+    if (data.imageUrl) return { url: data.imageUrl };
+    return { error: "No image URL in response" };
   } catch (e) {
-    console.error(`OpenRouter Error (${model}):`, e);
-    return undefined;
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`OpenRouter Error (${model}):`, msg);
+    return { error: msg.substring(0, 100) };
   }
 };
 
@@ -129,10 +136,16 @@ const generateImage = async (prompt: string, model: string, apiKeys?: { seedream
   if (model.startsWith('seedream')) {
     return generateSeedreamImage(prompt, model, apiKeys?.seedream);
   } else if (model.includes('/')) {
-    return generateOpenRouterImage(prompt, model);
+    const result = await generateOpenRouterImage(prompt, model);
+    return result.url;
   } else {
     return generateGeminiImage(prompt, model);
   }
+};
+
+// OpenRouter-specific: returns both url and error for logging
+const generateOpenRouterImageWithLog = async (prompt: string, model: string): Promise<{ url?: string; error?: string }> => {
+  return generateOpenRouterImage(prompt, model);
 };
 
 // Default Prompts Configuration
@@ -316,7 +329,7 @@ export const marketerAgent = async (analysis: AnalysisResult, pastArticles: Arti
   }
 };
 
-export const writerAgent = async (strategy: StrategyResult, promptTemplate?: string, rewriteContext?: { feedback: string, currentContent: string, improvement_points?: string[] }): Promise<string> => {
+export const writerAgent = async (strategy: StrategyResult, promptTemplate?: string, rewriteContext?: { feedback: string, currentContent: string, improvement_points?: string[] }, articleRequest?: string): Promise<string> => {
   let prompt = promptTemplate || DEFAULT_PROMPTS.writer;
 
   if (rewriteContext) {
@@ -345,6 +358,12 @@ export const writerAgent = async (strategy: StrategyResult, promptTemplate?: str
     - 記事全体の長さ・ボリュームは維持してください（短縮しないこと）。
     - 出力形式は前回同様、[SPLIT]マーカーを含む形式です。
     `;
+  }
+
+  if (articleRequest && articleRequest.trim()) {
+    prompt += `\n\n【ユーザーからの要望（最優先で反映）】
+    以下はユーザーが記事に対して指定した具体的な要望です。戦略やAPP_CONTEXTの内容と合わせて、この要望の意図を汲み取った記事を執筆してください：
+    「${articleRequest}」`;
   }
 
   prompt = prompt.replace('{{STRATEGY}}', JSON.stringify(strategy))
@@ -394,13 +413,14 @@ export const designerAgent = async (title: string, content: string, imageModel: 
           
           let logMessages: string[] = [];
           for (const model of fallbackModels) {
-            const result = await generateImage(prompt, model, apiKeys);
-            if (result) {
+            const result = await generateOpenRouterImageWithLog(prompt, model);
+            if (result.url) {
               logMessages.push(`${model}（このモデルにて生成）`);
               designData.image_model = logMessages.join('\n');
-              return result;
+              return result.url;
             } else {
-              logMessages.push(`${model}（エラー）`);
+              const reason = result.error ? `：${result.error}` : '';
+              logMessages.push(`${model}（エラー${reason}）`);
             }
           }
           

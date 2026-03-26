@@ -6,6 +6,7 @@ interface ArticleListProps {
   articles: Article[];
   onView: (article: Article) => void;
   onDelete?: (ids: string[]) => Promise<void>;
+  onBulkPost?: (ids: string[]) => Promise<void>;
 }
 
 const statusMap: Record<string, string> = {
@@ -16,12 +17,13 @@ const statusMap: Record<string, string> = {
   'Rejected': '却下'
 };
 
-const ArticleList: React.FC<ArticleListProps> = ({ articles, onView, onDelete }) => {
+const ArticleList: React.FC<ArticleListProps> = ({ articles, onView, onDelete, onBulkPost }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [sortOrder, setSortOrder] = useState<'date_desc' | 'date_asc' | 'score_desc'>('date_desc');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isBulkPosting, setIsBulkPosting] = useState(false);
 
   // Filter and Sort Logic
   const filteredArticles = useMemo(() => {
@@ -88,6 +90,31 @@ const ArticleList: React.FC<ArticleListProps> = ({ articles, onView, onDelete })
     }
   };
 
+  const handleBulkPostClick = async () => {
+    if (!onBulkPost || selectedIds.size === 0) return;
+
+    // Filter to only non-Posted articles
+    const postableIds = Array.from(selectedIds).filter(id => {
+      const a = articles.find(art => art.id === id);
+      return a && a.status !== 'Posted';
+    });
+
+    if (postableIds.length === 0) {
+      alert('選択された記事はすべて投稿済みです。');
+      return;
+    }
+
+    if (confirm(`選択した ${postableIds.length} 件の記事をCMSへ一括投稿しますか？\n※投稿済みの記事はスキップされます。`)) {
+      setIsBulkPosting(true);
+      try {
+        await onBulkPost(postableIds);
+        setSelectedIds(new Set());
+      } finally {
+        setIsBulkPosting(false);
+      }
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow border border-slate-200">
 
@@ -143,14 +170,26 @@ const ArticleList: React.FC<ArticleListProps> = ({ articles, onView, onDelete })
 
           {/* Bulk Actions */}
           {selectedIds.size > 0 && (
-            <button
-              onClick={handleDeleteClick}
-              disabled={isDeleting}
-              className="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-100 transition-colors flex items-center gap-2 animate-fade-in"
-            >
-              {isDeleting ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-trash"></i>}
-              選択した {selectedIds.size} 件を削除
-            </button>
+            <div className="flex items-center gap-2 animate-fade-in">
+              {onBulkPost && (
+                <button
+                  onClick={handleBulkPostClick}
+                  disabled={isBulkPosting || isDeleting}
+                  className="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-100 transition-colors flex items-center gap-2"
+                >
+                  {isBulkPosting ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-paper-plane"></i>}
+                  選択した {selectedIds.size} 件を一括投稿
+                </button>
+              )}
+              <button
+                onClick={handleDeleteClick}
+                disabled={isDeleting || isBulkPosting}
+                className="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-100 transition-colors flex items-center gap-2"
+              >
+                {isDeleting ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-trash"></i>}
+                選択した {selectedIds.size} 件を削除
+              </button>
+            </div>
           )}
         </div>
       </div>

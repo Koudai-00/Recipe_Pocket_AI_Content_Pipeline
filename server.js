@@ -142,47 +142,89 @@ app.post('/api/openrouter/generate-image', async (req, res) => {
     const { model, prompt } = req.body;
     if (!process.env.OPENROUTER_API) throw new Error("OPENROUTER_API not set on server");
 
+    console.log(`[OpenRouter] Requesting image from model: ${model}`);
+
+    const requestBody = {
+      model: model,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt }
+          ]
+        }
+      ],
+      modalities: ['image'],
+      max_tokens: 4096
+    };
+
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.OPENROUTER_API}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://recipepocket.jp',
+        'X-Title': 'Recipe Pocket AI Pipeline'
       },
-      body: JSON.stringify({
-        model: model,
-        messages: [{ role: 'user', content: prompt }]
-      })
+      body: JSON.stringify(requestBody)
     });
 
+    const responseText = await response.text();
+
     if (!response.ok) {
-      throw new Error(`OpenRouter API responded with status ${response.status}: ${await response.text()}`);
+      console.error(`[OpenRouter] API Error (${response.status}) for model ${model}:`, responseText);
+      throw new Error(`OpenRouter API responded with status ${response.status}: ${responseText}`);
     }
 
-    const data = await response.json();
-    
-    // OpenRouter image generation structure might be in choices[0].message.images or content
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch(e) {
+      console.error(`[OpenRouter] Failed to parse response for model ${model}:`, responseText.substring(0, 500));
+      throw new Error("Failed to parse OpenRouter response as JSON");
+    }
+
+    console.log(`[OpenRouter] Response structure for ${model}:`, JSON.stringify(data).substring(0, 300));
+
+    // Extract image from response - handle multiple formats
     let imageUrl = '';
     
     if (data.choices && data.choices[0] && data.choices[0].message) {
       const message = data.choices[0].message;
-      if (message.images && message.images.length > 0 && message.images[0].image_url) {
-         imageUrl = message.images[0].image_url.url;
-      } else if (typeof message.content === 'string' && message.content.startsWith('http')) {
-         // Some models might just return the URL in the text content
-         imageUrl = message.content;
-      } else if (typeof message.content === 'string' && message.content.startsWith('data:image')) {
-         imageUrl = message.content;
+      const content = message.content;
+
+      // Format 1: content is an array with image_url objects
+      if (Array.isArray(content)) {
+        for (const part of content) {
+          if (part.type === 'image_url' && part.image_url?.url) {
+            imageUrl = part.image_url.url;
+            break;
+          }
+        }
+      }
+      // Format 2: message.images array
+      else if (message.images && message.images.length > 0) {
+        if (message.images[0].image_url?.url) {
+          imageUrl = message.images[0].image_url.url;
+        } else if (typeof message.images[0] === 'string') {
+          imageUrl = message.images[0];
+        }
+      }
+      // Format 3: content is a direct URL string 
+      else if (typeof content === 'string' && (content.startsWith('http') || content.startsWith('data:image'))) {
+        imageUrl = content;
       }
     }
     
     if (!imageUrl) {
-       console.error("Unexpected OpenRouter response:", JSON.stringify(data, null, 2));
+       console.error(`[OpenRouter] Could not extract image from response for model ${model}. Full response:`, JSON.stringify(data, null, 2));
        throw new Error("Could not extract image URL/Data from OpenRouter response");
     }
 
+    console.log(`[OpenRouter] Successfully generated image with model ${model} (URL length: ${imageUrl.length})`);
     res.json({ imageUrl });
   } catch (error) {
-    console.error("OpenRouter Error:", error);
+    console.error("[OpenRouter] Error:", error.message);
     res.status(500).json({ error: error.message });
   }
 });
